@@ -1,42 +1,56 @@
 import SwiftUI
 
-struct AddTaskView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var title: String = ""
+struct EditTaskView: View {
+    let task: TaskItem
 
-    // Projects input and callbacks
+    // Inputs
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void
 
-    // Selection state
+    @Environment(\.dismiss) private var dismiss
+
+    // State mirrors AddTaskView but seeded from task
+    @State private var title: String
+    @State private var projectList: [ProjectItem]
     @State private var selectedProjectId: ProjectItem.ID?
-    @State private var projectList: [ProjectItem] = []
+
+    @State private var difficulty: TaskDifficulty
+    @State private var resistance: TaskResistance
+    @State private var estimated: TaskEstimatedTime
+
+    @State private var duePreset: DuePreset
+    @State private var dueDate: Date
+    @State private var showCustomDatePicker: Bool
+
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
     @State private var showingEmojiPicker = false
-    // Attributes
-    @State private var difficulty: TaskDifficulty = .easy
-    @State private var resistance: TaskResistance = .low
-    @State private var estimated: TaskEstimatedTime = .short
+
     // Info toggles
     @State private var showDifficultyInfo = false
     @State private var showResistanceInfo = false
     @State private var showEstimatedInfo = false
-    // Due date
-    enum DuePreset { case today, tomorrow, weekend, nextWeek, custom }
-    @State private var duePreset: DuePreset = .today
-    @State private var dueDate: Date = TaskItem.defaultDueDate()
     @State private var showDueInfo = false
-    @State private var showCustomDatePicker = false
 
-    init(projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
+    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
+        self.task = task
         self.projects = projects
         self.onCreateProject = onCreateProject
         self.onSave = onSave
-        _selectedProjectId = State(initialValue: nil)
+
+        _title = State(initialValue: task.title)
         _projectList = State(initialValue: projects)
+        _selectedProjectId = State(initialValue: task.project?.id)
+        _difficulty = State(initialValue: task.difficulty)
+        _resistance = State(initialValue: task.resistance)
+        _estimated = State(initialValue: task.estimatedTime)
+
+        let preset = EditTaskView.presetFor(date: task.dueDate)
+        _duePreset = State(initialValue: preset)
+        _dueDate = State(initialValue: task.dueDate)
+        _showCustomDatePicker = State(initialValue: preset == .custom)
     }
 
     var body: some View {
@@ -123,7 +137,7 @@ struct AddTaskView: View {
                     // Difficulty
                     Section {
                         HStack(spacing: 8) {
-                            Text("🗡️ Difficulty").font(.headline)
+                            Text("Difficulty").font(.headline)
                             Button { showDifficultyInfo.toggle() } label: { Image(systemName: "info.circle") }
                                 .buttonStyle(.plain)
                                 .popover(isPresented: $showDifficultyInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
@@ -148,7 +162,7 @@ struct AddTaskView: View {
                     // Resistance
                     Section {
                         HStack(spacing: 8) {
-                            Text("😖 Resistance").font(.headline)
+                            Text("Resistance").font(.headline)
                             Button { showResistanceInfo.toggle() } label: { Image(systemName: "info.circle") }
                                 .buttonStyle(.plain)
                                 .popover(isPresented: $showResistanceInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
@@ -173,7 +187,7 @@ struct AddTaskView: View {
                     // Estimated Time
                     Section {
                         HStack(spacing: 8) {
-                            Text("⏳ Estimated Time").font(.headline)
+                            Text("Estimated Time").font(.headline)
                             Button { showEstimatedInfo.toggle() } label: { Image(systemName: "info.circle") }
                                 .buttonStyle(.plain)
                                 .popover(isPresented: $showEstimatedInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
@@ -195,7 +209,8 @@ struct AddTaskView: View {
                         }
                     }
                 }
-                // Popup centered overlay
+
+                // Popup centered overlay (new project)
                 if showingAddProject {
                     Color.black.opacity(0.25)
                         .ignoresSafeArea()
@@ -215,9 +230,7 @@ struct AddTaskView: View {
                         }
 
                         HStack(spacing: 12) {
-                            Button {
-                                showingEmojiPicker = true
-                            } label: {
+                            Button { showingEmojiPicker = true } label: {
                                 Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
                                     .font(.system(size: 24))
                                     .frame(width: 44, height: 44)
@@ -256,7 +269,7 @@ struct AddTaskView: View {
                     .offset(y: -140)
                 }
             }
-            .navigationTitle("New Task")
+            .navigationTitle("Edit Task")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -276,9 +289,7 @@ struct AddTaskView: View {
         }
     }
 
-    private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    private var canSave: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private func save() {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
@@ -289,9 +300,21 @@ struct AddTaskView: View {
     private var canCreateProject: Bool {
         !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !newProjectEmoji.isEmpty
     }
+
+    // MARK: - Helpers
+    private enum DuePreset { case today, tomorrow, weekend, nextWeek, custom }
+
+    private static func presetFor(date: Date) -> DuePreset {
+        let normalized = TaskItem.defaultDueDate(date)
+        if normalized == TaskItem.defaultDueDate() { return .today }
+        if normalized == TaskItem.defaultDueDate(nextDays(1)) { return .tomorrow }
+        if normalized == TaskItem.defaultDueDate(upcomingSaturday()) { return .weekend }
+        if normalized == TaskItem.defaultDueDate(nextWeekMonday()) { return .nextWeek }
+        return .custom
+    }
 }
 
-// MARK: - Date helpers
+// MARK: - Date helpers (duplicated from AddTaskView)
 private func nextWeekday(_ weekday: Int, from date: Date = Date()) -> Date {
     var cal = Calendar.current
     cal.firstWeekday = 1 // Sunday
@@ -302,7 +325,6 @@ private func nextWeekday(_ weekday: Int, from date: Date = Date()) -> Date {
 }
 
 private func upcomingSaturday(from date: Date = Date()) -> Date {
-    // In Gregorian, Saturday = 7
     let sat = 7
     var cal = Calendar.current
     cal.firstWeekday = 1
@@ -312,7 +334,6 @@ private func upcomingSaturday(from date: Date = Date()) -> Date {
 }
 
 private func nextWeekMonday(from date: Date = Date()) -> Date {
-    // Monday = 2
     return nextWeekday(2, from: date)
 }
 

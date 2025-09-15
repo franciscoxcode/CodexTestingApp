@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = HomeViewModel()
     @State private var isPresentingAdd = false
+    @State private var editingTask: TaskItem?
 
     var body: some View {
         NavigationStack {
@@ -20,9 +21,33 @@ struct ContentView: View {
                 } else {
                     List(viewModel.tasks) { task in
                         TaskRow(task: task)
+                            .contentShape(Rectangle())
+                            .onLongPressGesture {
+                                editingTask = task
+                            }
                     }
                     .listStyle(.plain)
                 }
+            }
+            .sheet(item: $editingTask) { task in
+                EditTaskView(
+                    task: task,
+                    projects: viewModel.projects,
+                    onCreateProject: { name, emoji in
+                        viewModel.addProject(name: name, emoji: emoji)
+                    },
+                    onSave: { title, project, difficulty, resistance, estimated, dueDate in
+                        viewModel.updateTask(
+                            id: task.id,
+                            title: title,
+                            project: project,
+                            difficulty: difficulty,
+                            resistance: resistance,
+                            estimatedTime: estimated,
+                            dueDate: dueDate
+                        )
+                    }
+                )
             }
             .padding()
             .navigationTitle("Tasks")
@@ -46,6 +71,11 @@ struct ContentView: View {
                         viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate)
                     }
                 )
+            }
+            .onAppear {
+                if viewModel.tasks.isEmpty {
+                    viewModel.seedSampleData()
+                }
             }
         }
     }
