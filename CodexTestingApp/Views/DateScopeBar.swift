@@ -20,6 +20,10 @@ struct DateScopeBar: View {
                     dateScope = .tomorrow
                     showScopeDatePicker = false
                 }
+                scopeButton(title: "Weekend", isActive: dateScope == .weekend) {
+                    dateScope = .weekend
+                    showScopeDatePicker = false
+                }
                 scopeButton(title: "Pick date", isActive: isCustomScope(dateScope)) {
                     switch dateScope {
                     case .custom:
@@ -34,13 +38,17 @@ struct DateScopeBar: View {
 
             if showScopeDatePicker {
                 DatePicker("", selection: $scopeCustomDate, displayedComponents: .date)
-                    .datePickerStyle(.compact)
+                    .datePickerStyle(.graphical)
                     .labelsHidden()
                     .onChange(of: scopeCustomDate) { new in
                         dateScope = .custom(TaskItem.defaultDueDate(new))
+                        DispatchQueue.main.async { showScopeDatePicker = false }
                     }
             }
         }
+        .padding(.leading, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 0)
     }
 
     private func scopeButton(title: String, isActive: Bool, action: @escaping () -> Void) -> some View {

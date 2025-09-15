@@ -27,6 +27,7 @@ struct ContentView: View {
         case anytime
         case today
         case tomorrow
+        case weekend
         case custom(Date)
     }
     @State private var dateScope: DateScope = .today
@@ -35,7 +36,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
+            VStack(spacing: 6) {
                 StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter) {
                     showingAddProject = true
                 }
@@ -109,6 +110,17 @@ private func isCustomScope(_ scope: ContentView.DateScope) -> Bool {
     if case .custom(_) = scope { return true } else { return false }
 }
 
+private func upcomingSaturday(from date: Date = Date()) -> Date {
+    let sat = 7 // Saturday in Gregorian
+    var cal = Calendar.current
+    cal.firstWeekday = 1 // Sunday
+    let current = cal.component(.weekday, from: date)
+    if current == sat { return date }
+    var days = sat - current
+    if days <= 0 { days += 7 }
+    return cal.date(byAdding: .day, value: days, to: date) ?? date
+}
+
 // MARK: - ContentView helpers extracted to reduce type-check complexity
 extension ContentView {
     private var hasInbox: Bool {
@@ -135,6 +147,9 @@ extension ContentView {
             return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == today }
         case .tomorrow:
             let target: Date = TaskItem.defaultDueDate(nextDays(1))
+            return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
+        case .weekend:
+            let target: Date = TaskItem.defaultDueDate(upcomingSaturday())
             return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
         case .custom(let d):
             let target: Date = TaskItem.defaultDueDate(d)
