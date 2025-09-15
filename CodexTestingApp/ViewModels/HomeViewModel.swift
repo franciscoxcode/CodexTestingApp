@@ -19,10 +19,11 @@ final class HomeViewModel: ObservableObject {
         project: ProjectItem?,
         difficulty: TaskDifficulty = .easy,
         resistance: TaskResistance = .low,
-        estimatedTime: TaskEstimatedTime = .short
+        estimatedTime: TaskEstimatedTime = .short,
+        dueDate: Date = TaskItem.defaultDueDate()
     ) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        tasks.append(TaskItem(title: trimmed, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime))
+        tasks.append(TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate))
     }
 }

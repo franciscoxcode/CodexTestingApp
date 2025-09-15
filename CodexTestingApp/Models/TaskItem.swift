@@ -12,6 +12,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var difficulty: TaskDifficulty
     var resistance: TaskResistance
     var estimatedTime: TaskEstimatedTime
+    var dueDate: Date
 
     init(
         id: UUID = UUID(),
@@ -20,7 +21,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
         project: ProjectItem? = nil,
         difficulty: TaskDifficulty = .easy,
         resistance: TaskResistance = .low,
-        estimatedTime: TaskEstimatedTime = .short
+        estimatedTime: TaskEstimatedTime = .short,
+        dueDate: Date = TaskItem.defaultDueDate()
     ) {
         self.id = id
         self.title = title
@@ -29,5 +31,11 @@ struct TaskItem: Identifiable, Codable, Equatable {
         self.difficulty = difficulty
         self.resistance = resistance
         self.estimatedTime = estimatedTime
+        self.dueDate = dueDate
+    }
+
+    static func defaultDueDate(_ date: Date = Date()) -> Date {
+        // Normalize to start of day to avoid time-of-day variability
+        Calendar.current.startOfDay(for: date)
     }
 }

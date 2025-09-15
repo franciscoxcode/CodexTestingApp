@@ -50,6 +50,7 @@ struct SelectableChip: View {
     var body: some View {
         Button(action: onTap) {
             Text(title)
+                .lineLimit(1)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(isSelected ? color.opacity(0.2) : Color.clear)
