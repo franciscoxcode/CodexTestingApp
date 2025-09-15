@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskRow: View {
     let task: TaskItem
+    var onProjectTap: ((ProjectItem) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -10,10 +11,14 @@ struct TaskRow: View {
             Text(task.title)
             Spacer(minLength: 8)
             if let project = task.project {
-                HStack(spacing: 4) {
-                    Text(project.emoji)
-                    Text(project.name)
+                Button(action: { onProjectTap?(project) }) {
+                    HStack(spacing: 4) {
+                        Text(project.emoji)
+                        Text(project.name)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
@@ -21,4 +26,3 @@ struct TaskRow: View {
         .listRowSeparator(.hidden)
     }
 }
-
