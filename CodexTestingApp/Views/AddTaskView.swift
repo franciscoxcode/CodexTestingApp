@@ -110,7 +110,7 @@ struct AddTaskView: View {
                     .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .shadow(radius: 20)
-                    .offset(y: -60)
+                    .offset(y: -140)
                 }
             }
             .navigationTitle("New Task")
