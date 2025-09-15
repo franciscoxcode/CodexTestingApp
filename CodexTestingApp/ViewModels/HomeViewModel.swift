@@ -3,10 +3,20 @@ import Combine
 
 final class HomeViewModel: ObservableObject {
     @Published var tasks: [TaskItem] = []
+    @Published var projects: [ProjectItem] = []
 
-    func addTask(title: String) {
+    @discardableResult
+    func addProject(name: String, emoji: String) -> ProjectItem {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        let project = ProjectItem(name: trimmedName, emoji: trimmedEmoji.isEmpty ? "📁" : trimmedEmoji)
+        projects.append(project)
+        return project
+    }
+
+    func addTask(title: String, project: ProjectItem?) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        tasks.append(TaskItem(title: trimmed))
+        tasks.append(TaskItem(title: trimmed, project: project))
     }
 }

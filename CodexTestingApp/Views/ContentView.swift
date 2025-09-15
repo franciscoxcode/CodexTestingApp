@@ -19,12 +19,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(viewModel.tasks) { task in
-                        HStack {
-                            Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(task.isDone ? .green : .secondary)
-                            Text(task.title)
-                        }
-                        .listRowSeparator(.hidden)
+                        TaskRow(task: task)
                     }
                     .listStyle(.plain)
                 }
@@ -42,9 +37,15 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isPresentingAdd) {
-                AddTaskView { title in
-                    viewModel.addTask(title: title)
-                }
+                AddTaskView(
+                    projects: viewModel.projects,
+                    onCreateProject: { name, emoji in
+                        viewModel.addProject(name: name, emoji: emoji)
+                    },
+                    onSave: { title, project in
+                        viewModel.addTask(title: title, project: project)
+                    }
+                )
             }
         }
     }
