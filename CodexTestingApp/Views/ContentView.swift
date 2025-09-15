@@ -37,17 +37,17 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 6) {
-                StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter) {
+                StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter, onNew: {
                     showingAddProject = true
-                }
+                }, tasks: viewModel.tasks, dateScope: dateScope)
 
                 DateScopeBar(dateScope: $dateScope, showScopeDatePicker: $showScopeDatePicker, scopeCustomDate: $scopeCustomDate)
 
                 contentList
             }
-            .onChange(of: viewModel.tasks) { _ in
+            .onChange(of: viewModel.tasks) { _, tasks in
                 // If there are no inbox tasks anymore, clear inbox filter
-                if selectedFilter == .inbox && !viewModel.tasks.contains(where: { $0.project == nil }) {
+                if selectedFilter == .inbox && !tasks.contains(where: { $0.project == nil }) {
                     selectedFilter = .none
                 }
             }

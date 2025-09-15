@@ -3,6 +3,8 @@ import SwiftUI
 struct ProjectStoryItem: View {
     let project: ProjectItem
     let isSelected: Bool
+    var highlightColor: Color? = nil
+    var dimmed: Bool = false
     var onTap: () -> Void
 
     var body: some View {
@@ -17,7 +19,10 @@ struct ProjectStoryItem: View {
                 .frame(width: 56, height: 56)
                 .overlay(
                     Circle()
-                        .stroke(isSelected ? Color.blue : Color.secondary.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+                        .stroke(
+                            isSelected ? Color.blue : (highlightColor ?? Color.secondary.opacity(0.3)),
+                            lineWidth: isSelected ? 2 : (highlightColor != nil ? 2 : 1)
+                        )
                 )
 
                 Text(project.name)
@@ -26,8 +31,8 @@ struct ProjectStoryItem: View {
                     .frame(width: 64)
                     .foregroundStyle(.primary)
             }
+            .opacity(dimmed ? 0.45 : 1)
         }
         .buttonStyle(.plain)
     }
 }
-
