@@ -42,8 +42,8 @@ struct ContentView: View {
                     onCreateProject: { name, emoji in
                         viewModel.addProject(name: name, emoji: emoji)
                     },
-                    onSave: { title, project in
-                        viewModel.addTask(title: title, project: project)
+                    onSave: { title, project, difficulty, resistance, estimated in
+                        viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated)
                     }
                 )
             }

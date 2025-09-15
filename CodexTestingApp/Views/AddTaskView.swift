@@ -7,7 +7,7 @@ struct AddTaskView: View {
     // Projects input and callbacks
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
-    var onSave: (_ title: String, _ project: ProjectItem) -> Void
+    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime) -> Void
 
     // Selection state
     @State private var selectedProjectId: ProjectItem.ID?
@@ -16,12 +16,20 @@ struct AddTaskView: View {
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
     @State private var showingEmojiPicker = false
+    // Attributes
+    @State private var difficulty: TaskDifficulty = .easy
+    @State private var resistance: TaskResistance = .low
+    @State private var estimated: TaskEstimatedTime = .short
+    // Info toggles
+    @State private var showDifficultyInfo = false
+    @State private var showResistanceInfo = false
+    @State private var showEstimatedInfo = false
 
-    init(projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem) -> Void) {
+    init(projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime) -> Void) {
         self.projects = projects
         self.onCreateProject = onCreateProject
         self.onSave = onSave
-        _selectedProjectId = State(initialValue: projects.first?.id)
+        _selectedProjectId = State(initialValue: nil)
         _projectList = State(initialValue: projects)
     }
 
@@ -50,8 +58,76 @@ struct AddTaskView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                }
 
+                    // Difficulty
+                    Section {
+                        HStack(spacing: 8) {
+                            Text("Difficulty").font(.headline)
+                            Button { showDifficultyInfo.toggle() } label: { Image(systemName: "info.circle") }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showDifficultyInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                                    Text("Easy: fast and routine. Medium: several steps or moderate focus. Hard: challenging or unclear scope.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .padding(12)
+                                        .frame(maxWidth: 260)
+                                }
+                                .presentationCompactAdaptation(.popover)
+                            Spacer()
+                        }
+                        HStack(spacing: 8) {
+                            SelectableChip(title: "Easy", isSelected: difficulty == .easy, color: .green) { difficulty = .easy }
+                            SelectableChip(title: "Medium", isSelected: difficulty == .medium, color: .yellow) { difficulty = .medium }
+                            SelectableChip(title: "Hard", isSelected: difficulty == .hard, color: .red) { difficulty = .hard }
+                        }
+                    }
+
+                    // Resistance
+                    Section {
+                        HStack(spacing: 8) {
+                            Text("Resistance").font(.headline)
+                            Button { showResistanceInfo.toggle() } label: { Image(systemName: "info.circle") }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showResistanceInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                                    Text("Low: eager to start. Medium: some friction. High: strong avoidance.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .padding(12)
+                                        .frame(maxWidth: 260)
+                                }
+                                .presentationCompactAdaptation(.popover)
+                            Spacer()
+                        }
+                        HStack(spacing: 8) {
+                            SelectableChip(title: "Low", isSelected: resistance == .low, color: .green) { resistance = .low }
+                            SelectableChip(title: "Medium", isSelected: resistance == .medium, color: .yellow) { resistance = .medium }
+                            SelectableChip(title: "High", isSelected: resistance == .high, color: .red) { resistance = .high }
+                        }
+                    }
+
+                    // Estimated Time
+                    Section {
+                        HStack(spacing: 8) {
+                            Text("Estimated Time").font(.headline)
+                            Button { showEstimatedInfo.toggle() } label: { Image(systemName: "info.circle") }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showEstimatedInfo, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                                    Text("Define what Short/Medium/Long mean for you. Choose what feels right.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .padding(12)
+                                        .frame(maxWidth: 260)
+                                }
+                                .presentationCompactAdaptation(.popover)
+                            Spacer()
+                        }
+                        HStack(spacing: 8) {
+                            SelectableChip(title: "Short", isSelected: estimated == .short, color: .green) { estimated = .short }
+                            SelectableChip(title: "Medium", isSelected: estimated == .medium, color: .yellow) { estimated = .medium }
+                            SelectableChip(title: "Long", isSelected: estimated == .long, color: .red) { estimated = .long }
+                        }
+                    }
+                }
                 // Popup centered overlay
                 if showingAddProject {
                     Color.black.opacity(0.25)
@@ -134,12 +210,12 @@ struct AddTaskView: View {
     }
 
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedProjectId != nil
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func save() {
-        guard let id = selectedProjectId, let project = projectList.first(where: { $0.id == id }) else { return }
-        onSave(title, project)
+        let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
+        onSave(title, project, difficulty, resistance, estimated)
         dismiss()
     }
 

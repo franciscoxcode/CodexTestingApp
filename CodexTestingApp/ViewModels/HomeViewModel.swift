@@ -14,9 +14,15 @@ final class HomeViewModel: ObservableObject {
         return project
     }
 
-    func addTask(title: String, project: ProjectItem?) {
+    func addTask(
+        title: String,
+        project: ProjectItem?,
+        difficulty: TaskDifficulty = .easy,
+        resistance: TaskResistance = .low,
+        estimatedTime: TaskEstimatedTime = .short
+    ) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        tasks.append(TaskItem(title: trimmed, project: project))
+        tasks.append(TaskItem(title: trimmed, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime))
     }
 }

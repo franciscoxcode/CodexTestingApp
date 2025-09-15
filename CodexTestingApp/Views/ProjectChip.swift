@@ -40,3 +40,24 @@ struct NewProjectChip: View {
         .buttonStyle(.plain)
     }
 }
+
+struct SelectableChip: View {
+    let title: String
+    let isSelected: Bool
+    let color: Color
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(title)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? color.opacity(0.2) : Color.clear)
+                .overlay(
+                    Capsule().stroke(isSelected ? color : Color.secondary.opacity(0.3))
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
