@@ -179,45 +179,63 @@ struct AddTaskView: View {
                         }
                     }
 
-                    // Repeat (preview-only for Phase 2)
+                    // Repeat (clear copy)
                     Section {
                         Toggle("Repeat", isOn: $repeatEnabled)
                         if repeatEnabled {
-                            HStack {
-                                Stepper(value: $repeatInterval, in: 1...999) {
-                                    Text("Every \(repeatInterval)")
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Frequency").font(.headline)
+                                HStack {
+                                    Stepper(value: $repeatInterval, in: 1...999) { Text("Every \(repeatInterval)") }
+                                    Picker("Unit", selection: $repeatUnit) {
+                                        Text("Minutes").tag(RecurrenceUnit.minutes)
+                                        Text("Hours").tag(RecurrenceUnit.hours)
+                                        Text("Days").tag(RecurrenceUnit.days)
+                                        Text("Weeks").tag(RecurrenceUnit.weeks)
+                                        Text("Months").tag(RecurrenceUnit.months)
+                                        Text("Years").tag(RecurrenceUnit.years)
+                                    }
+                                    .pickerStyle(.menu)
                                 }
-                                Picker("Unit", selection: $repeatUnit) {
-                                    Text("min").tag(RecurrenceUnit.minutes)
-                                    Text("hr").tag(RecurrenceUnit.hours)
-                                    Text("days").tag(RecurrenceUnit.days)
-                                    Text("weeks").tag(RecurrenceUnit.weeks)
-                                    Text("months").tag(RecurrenceUnit.months)
-                                    Text("years").tag(RecurrenceUnit.years)
+
+                                Text("When to schedule the next").font(.headline)
+                                Picker("", selection: $repeatBasis) {
+                                    Text("When I complete it").tag(RecurrenceBasis.completion)
+                                    Text("On the scheduled date").tag(RecurrenceBasis.scheduled)
                                 }
-                                .pickerStyle(.menu)
-                            }
-                            Picker("From", selection: $repeatBasis) {
-                                Text("Scheduled").tag(RecurrenceBasis.scheduled)
-                                Text("Completion").tag(RecurrenceBasis.completion)
-                            }
-                            .pickerStyle(.segmented)
-                            Picker("Scope", selection: $repeatScope) {
-                                Text("All days").tag(RecurrenceScope.allDays)
-                                Text("Weekdays").tag(RecurrenceScope.weekdaysOnly)
-                                Text("Weekends").tag(RecurrenceScope.weekendsOnly)
-                            }
-                            .pickerStyle(.segmented)
-                            Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
-                            if repeatCountLimitEnabled {
-                                Stepper(value: $repeatCountLimit, in: 1...1000) {
-                                    Text("Up to \(repeatCountLimit) times")
+                                .pickerStyle(.segmented)
+                                Group {
+                                    if repeatBasis == .completion {
+                                        Text("The next date is calculated from when you complete the task.")
+                                    } else {
+                                        Text("The next date advances by the selected frequency, even if you don't complete it.")
+                                    }
                                 }
-                            }
-                            if let preview = repeatPreview() {
-                                Text("Next: \(dateTimeFormatter.string(from: preview))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                                Text("Days to consider").font(.headline)
+                                Picker("", selection: $repeatScope) {
+                                    Text("All days").tag(RecurrenceScope.allDays)
+                                    Text("Weekdays only").tag(RecurrenceScope.weekdaysOnly)
+                                    Text("Weekends only").tag(RecurrenceScope.weekendsOnly)
+                                }
+                                .pickerStyle(.segmented)
+
+                                Text("Repetition limit").font(.headline)
+                                Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
+                                if repeatCountLimitEnabled {
+                                    Stepper(value: $repeatCountLimit, in: 1...1000) { Text("Up to \(repeatCountLimit) times") }
+                                }
+
+                                Text("Next").font(.headline)
+                                if let preview = repeatPreview() {
+                                    Text("\(dateTimeFormatter.string(from: preview))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("—").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -297,7 +315,66 @@ struct AddTaskView: View {
                         }
                     }
 
-                    
+                    // Repeat (clearer copy)
+                    Section {
+                        Toggle("Repeat", isOn: $repeatEnabled)
+                        if repeatEnabled {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Frequency").font(.headline)
+                                HStack {
+                                    Stepper(value: $repeatInterval, in: 1...999) { Text("Every \(repeatInterval)") }
+                                    Picker("Unit", selection: $repeatUnit) {
+                                        Text("Minutes").tag(RecurrenceUnit.minutes)
+                                        Text("Hours").tag(RecurrenceUnit.hours)
+                                        Text("Days").tag(RecurrenceUnit.days)
+                                        Text("Weeks").tag(RecurrenceUnit.weeks)
+                                        Text("Months").tag(RecurrenceUnit.months)
+                                        Text("Years").tag(RecurrenceUnit.years)
+                                    }
+                                    .pickerStyle(.menu)
+                                }
+                                Text("Example: every 2 days, every 3 hours, every 6 months.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+
+                                Text("When to schedule the next").font(.headline)
+                                Picker("", selection: $repeatBasis) {
+                                    Text("When I complete it").tag(RecurrenceBasis.completion)
+                                    Text("On the scheduled date").tag(RecurrenceBasis.scheduled)
+                                }
+                                .pickerStyle(.segmented)
+                                Text("Whether the next occurs from completion time or cadence.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+
+                                Text("Days to consider").font(.headline)
+                                Picker("", selection: $repeatScope) {
+                                    Text("All days").tag(RecurrenceScope.allDays)
+                                    Text("Weekdays only").tag(RecurrenceScope.weekdaysOnly)
+                                    Text("Weekends only").tag(RecurrenceScope.weekendsOnly)
+                                }
+                                .pickerStyle(.segmented)
+                                Text("Weekdays: Mon–Fri. Weekends: Sat–Sun (anchored to Saturdays).")
+                                    .font(.footnote).foregroundStyle(.secondary)
+
+                                Text("Repetition limit").font(.headline)
+                                Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
+                                if repeatCountLimitEnabled {
+                                    Stepper(value: $repeatCountLimit, in: 1...1000) {
+                                        Text("Up to \(repeatCountLimit) times")
+                                    }
+                                }
+
+                                Text("Next").font(.headline)
+                                if let preview = repeatPreview() {
+                                    Text("\(dateTimeFormatter.string(from: preview))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("—").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
                 }
                 // Popup centered overlay
                 if showingAddProject {
