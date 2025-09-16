@@ -86,7 +86,7 @@ struct ContentView: View {
 
                 contentList
             }
-            .onChange(of: viewModel.tasks) { tasks in
+            .onChangeCompat(of: viewModel.tasks) { _, tasks in
                 // If there are no inbox tasks anymore, clear inbox filter
                 if selectedFilter == .inbox && !tasks.contains(where: { $0.project == nil }) {
                     selectedFilter = .none
@@ -121,7 +121,7 @@ struct ContentView: View {
                     viewModel.seedSampleData()
                 }
             }
-            .onChange(of: userPoints) { newValue in
+            .onChangeCompat(of: userPoints) { _, newValue in
                 UserDefaults.standard.set(newValue, forKey: "userPoints")
             }
             // New Project popup overlay
