@@ -6,6 +6,7 @@ struct StoryItem: View {
     let isSelected: Bool
     var selectedRingGradient: AngularGradient? = nil
     var onTap: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: onTap) {
@@ -33,13 +34,35 @@ struct StoryItem: View {
                 )
                 .padding(.top, selectedRingGradient != nil ? 2 : 0)
 
+                let chipBg = (colorScheme == .dark) ? Color.white.opacity(0.92) : Color.black
+                let chipFg = (colorScheme == .dark) ? Color.black : Color.white
                 Text(title)
                     .font(.caption)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundStyle(isSelected ? chipFg : Color.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Group {
+                            if isSelected {
+                                Capsule().fill(chipBg)
+                            } else {
+                                Capsule().fill(Color.clear)
+                            }
+                        }
+                    )
+                    .overlay(
+                        Group {
+                            if isSelected {
+                                Capsule().stroke(Color.secondary.opacity(0.25))
+                            }
+                        }
+                    )
+                    .clipShape(Capsule())
                     .lineLimit(1)
                     .frame(width: 64)
-                    .foregroundStyle(.primary)
-            }
         }
-        .buttonStyle(.plain)
     }
+    .buttonStyle(.plain)
+}
 }

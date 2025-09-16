@@ -6,6 +6,7 @@ struct ProjectStoryItem: View {
     var dimmed: Bool = false
     var hasActiveForScope: Bool = false
     var onTap: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: onTap) {
@@ -51,11 +52,33 @@ struct ProjectStoryItem: View {
                 )
                 .padding(.top, 2) // ensure no top clipping even with thick stroke
 
+                let chipBg = (colorScheme == .dark) ? Color.white.opacity(0.92) : Color.black
+                let chipFg = (colorScheme == .dark) ? Color.black : Color.white
                 Text(project.name)
                     .font(.caption)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundStyle(isSelected ? chipFg : Color.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Group {
+                            if isSelected {
+                                Capsule().fill(chipBg)
+                            } else {
+                                Capsule().fill(Color.clear)
+                            }
+                        }
+                    )
+                    .overlay(
+                        Group {
+                            if isSelected {
+                                Capsule().stroke(Color.secondary.opacity(0.25))
+                            }
+                        }
+                    )
+                    .clipShape(Capsule())
                     .lineLimit(1)
                     .frame(width: 64)
-                    .foregroundStyle(.primary)
             }
             .opacity(dimmed ? 0.45 : 1)
         }
