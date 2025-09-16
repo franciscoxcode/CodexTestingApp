@@ -249,13 +249,23 @@ extension ContentView {
                 ContentUnavailableView("No tasks yet", systemImage: "checklist", description: Text("Tap + to add your first task."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TaskFlatListView(
-                    title: headerTitle,
-                    tasks: filteredTasks,
-                    onLongPress: { task in editingTask = task },
-                    onProjectTap: { project in selectedFilter = .project(project.id) },
-                    onToggle: { task in handleToggle(task) }
-                )
+                switch (selectedFilter, dateScope) {
+                case (.project, .anytime):
+                    TasksByDueDateView(
+                        tasks: filteredTasks,
+                        onLongPress: { task in editingTask = task },
+                        onProjectTap: { project in selectedFilter = .project(project.id) },
+                        onToggle: { task in handleToggle(task) }
+                    )
+                default:
+                    TaskFlatListView(
+                        title: headerTitle,
+                        tasks: filteredTasks,
+                        onLongPress: { task in editingTask = task },
+                        onProjectTap: { project in selectedFilter = .project(project.id) },
+                        onToggle: { task in handleToggle(task) }
+                    )
+                }
             }
         }
     }
