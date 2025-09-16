@@ -4,6 +4,7 @@ struct TaskRow: View {
     let task: TaskItem
     var onProjectTap: ((ProjectItem) -> Void)? = nil
     var onToggle: ((TaskItem) -> Void)? = nil
+    var showCompletedStyle: Bool = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -12,9 +13,10 @@ struct TaskRow: View {
                     .foregroundStyle(task.isDone ? .green : .secondary)
             }
             .buttonStyle(.plain)
+            let renderAsDone = showCompletedStyle && task.isDone
             Text(task.title)
-                .strikethrough(task.isDone, color: .secondary)
-                .foregroundStyle(task.isDone ? .secondary : .primary)
+                .strikethrough(renderAsDone, color: .secondary)
+                .foregroundStyle(renderAsDone ? .secondary : .primary)
             Spacer(minLength: 8)
             if let project = task.project {
                 Button(action: { onProjectTap?(project) }) {

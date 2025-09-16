@@ -9,6 +9,15 @@ final class HomeViewModel: ObservableObject {
     init() {
         loadProjects()
         loadTasks()
+        // Migration: ensure completedAt is set for done tasks
+        var mutated = false
+        for i in tasks.indices {
+            if tasks[i].isDone && tasks[i].completedAt == nil {
+                tasks[i].completedAt = Date()
+                mutated = true
+            }
+        }
+        if mutated { saveTasks() }
 
         // Persist on changes
         $projects
@@ -76,6 +85,11 @@ final class HomeViewModel: ObservableObject {
     func toggleTaskDone(id: UUID) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[idx].isDone.toggle()
+        if tasks[idx].isDone {
+            tasks[idx].completedAt = Date()
+        } else {
+            tasks[idx].completedAt = nil
+        }
     }
 
     // Seed sample data for testing

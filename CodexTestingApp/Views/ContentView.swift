@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var editingTask: TaskItem?
     @State private var editingProject: ProjectItem?
     @State private var userPoints: Int = 0
+    @State private var showingCompletedSheet = false
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -66,7 +67,7 @@ struct ContentView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
                     Spacer()
-                    PointsBadge(points: userPoints)
+                    PointsBadge(points: userPoints, onTap: { showingCompletedSheet = true })
                 }
                 .padding(.top, 21)
                 .padding(.bottom, 13)
@@ -136,6 +137,9 @@ struct ContentView: View {
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(isPresented: $showingCompletedSheet) {
+                completedSheet
             }
         }
     }
@@ -530,11 +534,22 @@ extension ContentView {
         }()
         return difficultyPoints + resistancePoints + timePoints
     }
+
+    // Completed tasks sheet
+    @ViewBuilder
+    private var completedSheet: some View {
+        CompletedTasksView(
+            tasks: viewModel.tasks,
+            onUncomplete: { task in handleToggle(task) },
+            onClose: { showingCompletedSheet = false }
+        )
+    }
 }
 
 // Simple points badge view (top-right)
 private struct PointsBadge: View {
     let points: Int
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 6) {
@@ -551,6 +566,7 @@ private struct PointsBadge: View {
             Capsule().stroke(Color.secondary.opacity(0.3))
         )
         .clipShape(Capsule())
+        .onTapGesture { onTap?() }
     }
 }
 

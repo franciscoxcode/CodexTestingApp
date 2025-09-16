@@ -8,6 +8,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String
     var isDone: Bool
+    var completedAt: Date? = nil
     var project: ProjectItem?
     var difficulty: TaskDifficulty
     var resistance: TaskResistance
@@ -27,6 +28,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         self.id = id
         self.title = title
         self.isDone = isDone
+        self.completedAt = nil
         self.project = project
         self.difficulty = difficulty
         self.resistance = resistance
