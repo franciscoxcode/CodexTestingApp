@@ -92,6 +92,10 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    func deleteTask(id: UUID) {
+        tasks.removeAll { $0.id == id }
+    }
+
     // Seed sample data for testing
     func seedSampleData() {
         guard tasks.isEmpty else { return }

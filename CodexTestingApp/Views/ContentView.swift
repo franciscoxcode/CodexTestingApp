@@ -290,6 +290,9 @@ extension ContentView {
                     estimatedTime: estimated,
                     dueDate: dueDate
                 )
+            },
+            onDelete: {
+                viewModel.deleteTask(id: task.id)
             }
         )
     }

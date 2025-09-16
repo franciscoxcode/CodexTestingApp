@@ -7,6 +7,7 @@ struct EditTaskView: View {
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void
+    var onDelete: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -35,11 +36,12 @@ struct EditTaskView: View {
     @State private var showEstimatedInfo = false
     @State private var showDueInfo = false
 
-    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
+    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void, onDelete: (() -> Void)? = nil) {
         self.task = task
         self.projects = projects
         self.onCreateProject = onCreateProject
         self.onSave = onSave
+        self.onDelete = onDelete
 
         _title = State(initialValue: task.title)
         _projectList = State(initialValue: projects)
@@ -213,6 +215,17 @@ struct EditTaskView: View {
                                 SelectableChip(title: "Medium", isSelected: estimated == .medium, color: .yellow) { estimated = .medium }
                                 SelectableChip(title: "Long", isSelected: estimated == .long, color: .yellow) { estimated = .long }
                             }
+                        }
+                    }
+
+                    // Delete Task (separate section at bottom)
+                    Section {
+                        Button(role: .destructive) {
+                            onDelete?()
+                            dismiss()
+                        } label: {
+                            Text("Delete Task")
+                                .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                 }
