@@ -8,6 +8,7 @@ struct StoriesBar: View {
     // New: tasks and current date scope for highlighting/reordering
     let tasks: [TaskItem]
     let dateScope: ContentView.DateScope
+    var onProjectLongPress: (ProjectItem) -> Void = { _ in }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -48,6 +49,9 @@ struct StoriesBar: View {
                         onTap: {
                             selectedFilter = (selectedFilter == ContentView.TaskFilter.project(project.id)) ? ContentView.TaskFilter.none : ContentView.TaskFilter.project(project.id)
                         }
+                    )
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.4).onEnded { _ in onProjectLongPress(project) }
                     )
                 }
             }

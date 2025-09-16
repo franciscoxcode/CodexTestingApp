@@ -14,6 +14,15 @@ final class HomeViewModel: ObservableObject {
         return project
     }
 
+    func updateProject(id: UUID, name: String, emoji: String, colorName: String?) {
+        guard let idx = projects.firstIndex(where: { $0.id == id }) else { return }
+        var p = projects[idx]
+        p.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        p.emoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        p.colorName = colorName
+        projects[idx] = p
+    }
+
     func addTask(
         title: String,
         project: ProjectItem?,

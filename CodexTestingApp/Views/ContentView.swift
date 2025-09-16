@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var viewModel = HomeViewModel()
     @State private var isPresentingAdd = false
     @State private var editingTask: TaskItem?
+    @State private var editingProject: ProjectItem?
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -23,6 +24,7 @@ struct ContentView: View {
     @State private var newProjectEmoji: String = ""
     @State private var newProjectColor: Color? = nil
     @State private var showingEmojiPicker = false
+    @State private var isPickingForEdit = false
     // Secondary date scope filter
     enum DateScope: Equatable {
         case anytime
@@ -34,13 +36,22 @@ struct ContentView: View {
     @State private var dateScope: DateScope = .today
     @State private var showScopeDatePicker = false
     @State private var scopeCustomDate: Date = TaskItem.defaultDueDate()
+    // Edit project popup state
+    @State private var editProjectName: String = ""
+    @State private var editProjectEmoji: String = ""
+    @State private var editProjectColor: Color? = nil
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 6) {
                 StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter, onNew: {
                     showingAddProject = true
-                }, tasks: viewModel.tasks, dateScope: dateScope)
+                }, tasks: viewModel.tasks, dateScope: dateScope, onProjectLongPress: { project in
+                    editingProject = project
+                    editProjectName = project.name
+                    editProjectEmoji = project.emoji
+                    editProjectColor = colorFromName(project.colorName)
+                })
 
                 DateScopeBar(dateScope: $dateScope, showScopeDatePicker: $showScopeDatePicker, scopeCustomDate: $scopeCustomDate)
 
@@ -55,6 +66,7 @@ struct ContentView: View {
             .sheet(item: $editingTask) { task in
                 editTaskSheet(task)
             }
+            // Removed full-screen sheet for edit project; using overlay below
             .padding()
             .navigationTitle("NoteBites")
             .toolbar {
@@ -89,12 +101,15 @@ struct ContentView: View {
                 }
             }
             // New Project popup overlay
-            .overlay(alignment: .center) {
-                newProjectOverlay()
-            }
+            .overlay(alignment: .center) { newProjectOverlay() }
+            .overlay(alignment: .center) { editProjectOverlay() }
             .sheet(isPresented: $showingEmojiPicker) {
                 EmojiPickerView { selected in
-                    newProjectEmoji = selected
+                    if editingProject != nil && isPickingForEdit {
+                        editProjectEmoji = selected
+                    } else {
+                        newProjectEmoji = selected
+                    }
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -250,7 +265,10 @@ extension ContentView {
                     }
 
                     HStack(spacing: 12) {
-                        Button { showingEmojiPicker = true } label: {
+                        Button {
+                            isPickingForEdit = false
+                            showingEmojiPicker = true
+                        } label: {
                             ZStack {
                                 Circle().fill(newProjectColor ?? Color.clear)
                                 Circle().fill(.ultraThinMaterial)
@@ -313,6 +331,117 @@ extension ContentView {
                 .shadow(radius: 20)
                 .offset(y: -140)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func editProjectOverlay() -> some View {
+        if let project = editingProject {
+            ZStack {
+                Color.black.opacity(0.25).ignoresSafeArea()
+
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text("Edit Project").font(.headline)
+                        Spacer()
+                        Button {
+                            editingProject = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            isPickingForEdit = true
+                            showingEmojiPicker = true
+                        } label: {
+                            ZStack {
+                                Circle().fill(editProjectColor ?? Color.clear)
+                                Circle().fill(.ultraThinMaterial)
+                                Text(editProjectEmoji.isEmpty ? "✨" : editProjectEmoji)
+                                    .font(.system(size: 24))
+                            }
+                            .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+
+                        TextField("Project name", text: $editProjectName)
+                            .textInputAutocapitalization(.words)
+                    }
+
+                    // Color palette (horizontal scroll)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(projectColorOptions.enumerated()), id: \.offset) { _, opt in
+                                let isSelected = colorsEqual(editProjectColor, opt.color)
+                                Button {
+                                    editProjectColor = isSelected ? nil : opt.color
+                                } label: {
+                                    Circle()
+                                        .fill(opt.color)
+                                        .frame(width: 22, height: 22)
+                                        .overlay(
+                                            Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            editingProject = nil
+                        }
+                        Button("Save") {
+                            viewModel.updateProject(
+                                id: project.id,
+                                name: editProjectName,
+                                emoji: editProjectEmoji,
+                                colorName: colorName(from: editProjectColor)
+                            )
+                            editingProject = nil
+                        }
+                        .disabled(editProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || editProjectEmoji.isEmpty)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: 360)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(radius: 20)
+                .offset(y: -140)
+            }
+        }
+    }
+
+    // Color helpers for edit mapping
+    private var projectColorOptions: [(name: String, color: Color)] {
+        [
+            ("yellow", .yellow), ("green", .green), ("blue", .blue), ("purple", .purple), ("pink", .pink),
+            ("orange", .orange), ("teal", .teal), ("mint", .mint), ("indigo", .indigo), ("red", .red), ("brown", .brown), ("gray", .gray)
+        ]
+    }
+
+    private func colorFromName(_ name: String?) -> Color? {
+        guard let name = name else { return nil }
+        return projectColorOptions.first(where: { $0.name == name })?.color
+    }
+
+    private func colorName(from color: Color?) -> String? {
+        guard let color = color else { return nil }
+        return projectColorOptions.first(where: { $0.color.description == color.description })?.name
+    }
+
+    private func colorsEqual(_ a: Color?, _ b: Color?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case let (x?, y?): return x.description == y.description
+        default: return false
         }
     }
 }
