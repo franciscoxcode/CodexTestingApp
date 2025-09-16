@@ -6,78 +6,97 @@ struct CompletedTasksView: View {
     var onClose: () -> Void
     var onProjectTap: (ProjectItem) -> Void = { _ in }
 
+    // Single-day view state
+    @State private var selectedDay: Date = Calendar.current.startOfDay(for: Date())
+    @State private var showPicker: Bool = false
+
     var body: some View {
         NavigationStack {
-            List {
-                // Sections grouped by completion day with daily total points
-                ForEach(groupedSections, id: \.title) { section in
-                    Section(header: headerView(title: section.title, totalPoints: section.totalPoints)) {
-                        ForEach(section.items) { task in
-                            let pts = points(for: task)
-                            TaskRow(
-                                task: task,
-                                onProjectTap: { project in onProjectTap(project) },
-                                onToggle: { _ in onUncomplete(task) },
-                                showCompletedStyle: false,
-                                trailingInfo: "+\(pts)",
-                                showProjectName: false
-                            )
-                        }
+            VStack(spacing: 4) {
+                // Screen title with extra top padding
+                Text("Completed Tasks")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .padding(.top, 12)
+
+                // Header controls: prev day, title (tap to pick), next day, Today
+                headerControls
+                    .padding(.top, 25)
+                    .padding(.bottom, 8)
+
+                List {
+                    ForEach(itemsForSelectedDay) { task in
+                        let pts = points(for: task)
+                        TaskRow(
+                            task: task,
+                            onProjectTap: { project in onProjectTap(project) },
+                            onToggle: { _ in onUncomplete(task) },
+                            showCompletedStyle: false,
+                            trailingInfo: "+\(pts)",
+                            showProjectName: false
+                        )
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Completed Tasks")
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { onClose() }
                 }
             }
+            .background(Color(.systemBackground))
+            .sheet(isPresented: $showPicker) {
+                VStack {
+                    HStack {
+                        Button("Cancel") { showPicker = false }
+                        Spacer()
+                        Text("Pick Date").font(.headline)
+                        Spacer()
+                        Button("Done") { showPicker = false }
+                    }
+                    .padding(.horizontal)
+                    DatePicker("", selection: $selectedDay, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .onChange(of: selectedDay) { _ in selectedDay = normalized(selectedDay) }
+                        .padding(.horizontal)
+                }
+                .presentationDetents([.height(420)])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
+    // MARK: - Single-day computed views
     private var completed: [TaskItem] { tasks.filter { $0.isDone } }
 
-    private var groupedSections: [(title: String, items: [TaskItem], totalPoints: Int)] {
-        let today = normalized(Date())
-        let yesterday = normalized(Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
-
-        // Group tasks by completion date; if missing, treat as today
-        let withDate = completed.map { t -> (date: Date, task: TaskItem) in
-            let d = t.completedAt ?? Date()
-            return (normalized(d), t)
-        }
-
-        // Build dictionary by day
-        let grouped = Dictionary(grouping: withDate, by: { $0.date })
-        // Sort days descending
-        let sortedDays = grouped.keys.sorted(by: >)
-
-        return sortedDays.map { day in
-            let title: String
-            if day == today { title = "Today" }
-            else if day == yesterday { title = "Yesterday" }
-            else { title = headerFormatter.string(from: day) }
-            let items = (grouped[day] ?? []).map { $0.task }.sorted { (a, b) in
+    private var itemsForSelectedDay: [TaskItem] {
+        let day = normalized(selectedDay)
+        return completed.filter { normalized($0.completedAt ?? Date()) == day }
+            .sorted { (a, b) in
                 let da = a.completedAt ?? Date.distantPast
                 let db = b.completedAt ?? Date.distantPast
                 return da > db
             }
-            let total = items.reduce(0) { $0 + points(for: $1) }
-            return (title, items, total)
-        }
     }
 
-    @ViewBuilder
-    private func headerView(title: String, totalPoints: Int) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text("\(totalPoints) pts")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+    private var dayTitle: String {
+        let day = normalized(selectedDay)
+        let today = normalized(Date())
+        let yesterday = normalized(Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+        if day == today { return "Today" }
+        if day == yesterday { return "Yesterday" }
+        return headerFormatter.string(from: day)
     }
+
+    private var dayTotalPoints: Int {
+        itemsForSelectedDay.reduce(0) { $0 + points(for: $1) }
+    }
+
+    // (section header no longer used; total points chip moved to headerControls)
 
     private func normalized(_ date: Date) -> Date {
         Calendar.current.startOfDay(for: date)
@@ -114,5 +133,62 @@ struct CompletedTasksView: View {
             }
         }()
         return difficultyPoints + resistancePoints + timePoints
+    }
+
+    // MARK: - Header controls
+    @ViewBuilder
+    private var headerControls: some View {
+        let today = normalized(Date())
+        HStack(spacing: 12) {
+            Button(action: { selectedDay = normalized(addDays(-1, from: selectedDay)) }) {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { showPicker = true }) {
+                HStack(spacing: 6) {
+                    Text(dayTitle).font(.headline)
+                    Image(systemName: "calendar")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { selectedDay = normalized(addDays(1, from: selectedDay)) }) {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .disabled(normalized(selectedDay) >= today)
+
+            Spacer()
+
+            if normalized(selectedDay) != today {
+                Button("Today") { selectedDay = today }
+                    .buttonStyle(.bordered)
+                    .font(.caption)
+            }
+
+            // Daily total points chip aligned to far right
+            HStack(spacing: 6) {
+                Image(systemName: "dollarsign.circle.fill")
+                    .foregroundStyle(.yellow)
+                Text("\(dayTotalPoints)")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial)
+            .overlay(
+                Capsule().stroke(Color.secondary.opacity(0.3))
+            )
+            .clipShape(Capsule())
+        }
+        .padding(.horizontal)
+    }
+
+    private func addDays(_ days: Int, from date: Date) -> Date {
+        Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
     }
 }
