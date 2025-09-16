@@ -61,7 +61,7 @@ struct CompletedTasksView: View {
                     DatePicker("", selection: $selectedDay, displayedComponents: .date)
                         .datePickerStyle(.graphical)
                         .labelsHidden()
-                        .onChange(of: selectedDay) { _ in selectedDay = normalized(selectedDay) }
+                        .onChangeCompat(of: selectedDay) { _, new in selectedDay = normalized(new) }
                         .padding(.horizontal)
                 }
                 .presentationDetents([.height(420)])
