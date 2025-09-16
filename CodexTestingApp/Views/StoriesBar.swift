@@ -55,7 +55,7 @@ struct StoriesBar: View {
                     )
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.leading, 4)
         }
         .padding(.vertical, 4)
     }

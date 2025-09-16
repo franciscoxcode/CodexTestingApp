@@ -59,6 +59,7 @@ struct ContentView: View {
                     }
                     .accessibilityLabel("Add Task")
                 }
+                .padding(.horizontal, 8)
                 
 
                 // Row 2: title on left, points on right
@@ -71,6 +72,7 @@ struct ContentView: View {
                 }
                 .padding(.top, 21)
                 .padding(.bottom, 13)
+                .padding(.horizontal, 8)
 
                 // Row 3: projects bar
                 StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter, onNew: {
