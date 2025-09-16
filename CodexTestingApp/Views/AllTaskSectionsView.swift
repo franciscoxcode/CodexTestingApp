@@ -12,6 +12,22 @@ struct AllTaskSectionsView: View {
 
     var body: some View {
         List {
+            // Show Unassigned first if present
+            let unassigned = tasks.filter { $0.project == nil }
+            if !unassigned.isEmpty {
+                Section(header: Text("Unassigned")) {
+                    ForEach(unassigned) { task in
+                        TaskRow(task: task,
+                                onToggle: { _ in onToggle(task) },
+                                onEdit: { _ in onEdit(task) },
+                                onDelete: { _ in onDelete(task) },
+                                onMoveMenu: { _ in onMoveMenu(task) })
+                            .contentShape(Rectangle())
+                    }
+                }
+            }
+
+            // Then show the rest of the projects
             ForEach(projects) { project in
                 let items = tasks.filter { $0.project?.id == project.id }
                 if !items.isEmpty {
@@ -27,19 +43,6 @@ struct AllTaskSectionsView: View {
                             )
                             .contentShape(Rectangle())
                         }
-                    }
-                }
-            }
-            let unassigned = tasks.filter { $0.project == nil }
-            if !unassigned.isEmpty {
-                Section(header: Text("Unassigned")) {
-                    ForEach(unassigned) { task in
-                        TaskRow(task: task,
-                                onToggle: { _ in onToggle(task) },
-                                onEdit: { _ in onEdit(task) },
-                                onDelete: { _ in onDelete(task) },
-                                onMoveMenu: { _ in onMoveMenu(task) })
-                            .contentShape(Rectangle())
                     }
                 }
             }
