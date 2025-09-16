@@ -10,6 +10,7 @@ final class HomeViewModel: ObservableObject {
         loadProjects()
         loadTasks()
         // Migration: ensure completedAt is set for done tasks
+        // Migration: ensure completedAt is set for done tasks
         var mutated = false
         for i in tasks.indices {
             if tasks[i].isDone && tasks[i].completedAt == nil {
@@ -18,6 +19,9 @@ final class HomeViewModel: ObservableObject {
             }
         }
         if mutated { saveTasks() }
+
+        // Migration: assign sortOrder to projects that don't have it yet
+        migrateProjectSortOrderIfNeeded()
 
         // Persist on changes
         $projects
@@ -29,6 +33,23 @@ final class HomeViewModel: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in self?.saveTasks() }
             .store(in: &cancellables)
+    }
+
+    private func migrateProjectSortOrderIfNeeded() {
+        var changed = false
+        // If any project lacks sortOrder, assign sequentially in current array order
+        if projects.contains(where: { $0.sortOrder == nil }) {
+            for (idx, var p) in projects.enumerated() {
+                if p.sortOrder == nil {
+                    p.sortOrder = idx
+                    if let i = projects.firstIndex(where: { $0.id == p.id }) {
+                        projects[i] = p
+                    }
+                    changed = true
+                }
+            }
+        }
+        if changed { saveProjects() }
     }
 
     @discardableResult
@@ -49,6 +70,19 @@ final class HomeViewModel: ObservableObject {
         p.emoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
         p.colorName = colorName
         projects[idx] = p
+        saveProjects()
+    }
+
+    // Apply user-defined order by assigning consecutive sortOrder values
+    func applyProjectOrder(idsInOrder: [UUID]) {
+        var orderMap: [UUID: Int] = [:]
+        for (i, id) in idsInOrder.enumerated() { orderMap[id] = i }
+        for i in projects.indices {
+            let id = projects[i].id
+            if let newOrder = orderMap[id] {
+                projects[i].sortOrder = newOrder
+            }
+        }
         saveProjects()
     }
 

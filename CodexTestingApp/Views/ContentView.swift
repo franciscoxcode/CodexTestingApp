@@ -13,6 +13,7 @@ struct ContentView: View {
     @StateObject private var viewModel = HomeViewModel()
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPresentingAdd = false
+    @State private var isPresentingManageProjects = false
     @State private var editingTask: TaskItem?
     @State private var editingProject: ProjectItem?
     @State private var userPoints: Int = 0
@@ -74,6 +75,14 @@ struct ContentView: View {
                     .padding(.trailing, 8)
                     #endif
                     #endif
+                    Button {
+                        isPresentingManageProjects = true
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.headline)
+                    }
+                    .accessibilityLabel("Manage Projects")
+                    .padding(.trailing, 8)
                     Button {
                         isPresentingAdd = true
                     } label: {
@@ -155,6 +164,11 @@ struct ContentView: View {
                         viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate)
                     }
                 )
+            }
+            .sheet(isPresented: $isPresentingManageProjects) {
+                ManageProjectsView(projects: viewModel.projects) { ids in
+                    viewModel.applyProjectOrder(idsInOrder: ids)
+                }
             }
             .onAppear {
                 // Load persisted points

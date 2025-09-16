@@ -71,9 +71,12 @@ extension StoriesBar {
     }
 
     private func orderedProjects() -> [ProjectItem] {
-        guard shouldDimProjects() else { return projects }
-        let withTasks = projects.filter { projectHasTasksForScope($0) }
-        let withoutTasks = projects.filter { !projectHasTasksForScope($0) }
+        // Sort by user's preferred order (lower sortOrder first). Fallback to name for stability.
+        func sortKey(_ p: ProjectItem) -> (Int, String) { ((p.sortOrder ?? Int.max), p.name) }
+        let sorted = projects.sorted { a, b in sortKey(a) < sortKey(b) }
+        guard shouldDimProjects() else { return sorted }
+        let withTasks = sorted.filter { projectHasTasksForScope($0) }
+        let withoutTasks = sorted.filter { !projectHasTasksForScope($0) }
         return withTasks + withoutTasks
     }
 
