@@ -183,14 +183,19 @@ struct ContentView: View {
                 }
                 #endif
                 #endif
+                // Rollover any incomplete past-due tasks to today at app launch
+                viewModel.rolloverIncompletePastDueTasksToToday()
             }
             // Refresh date-scoped views when app becomes active or clock changes significantly
             .onChangeCompat(of: scenePhase) { _, phase in
                 if phase == .active {
+                    // First, rollover past-due incomplete tasks
+                    viewModel.rolloverIncompletePastDueTasksToToday()
                     timeAnchor = Date()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                viewModel.rolloverIncompletePastDueTasksToToday()
                 timeAnchor = Date()
             }
             .onChangeCompat(of: userPoints) { _, newValue in

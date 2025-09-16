@@ -81,7 +81,8 @@ extension StoriesBar {
     }
 
     private func projectHasTasksForScope(_ project: ProjectItem) -> Bool {
-        let items = tasks.filter { $0.project?.id == project.id }
+        // Only consider incomplete tasks for highlighting/ordering
+        let items = tasks.filter { $0.project?.id == project.id && !$0.isDone }
         switch dateScope {
         case .anytime:
             return !items.isEmpty

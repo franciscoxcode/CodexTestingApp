@@ -52,6 +52,20 @@ final class HomeViewModel: ObservableObject {
         if changed { saveProjects() }
     }
 
+    // Move any incomplete tasks whose due date is before today up to today.
+    // Idempotent: running multiple times per day does nothing after first pass.
+    func rolloverIncompletePastDueTasksToToday() {
+        let today = TaskItem.defaultDueDate()
+        var changed = false
+        for i in tasks.indices {
+            if !tasks[i].isDone && TaskItem.defaultDueDate(tasks[i].dueDate) < today {
+                tasks[i].dueDate = today
+                changed = true
+            }
+        }
+        if changed { saveTasks() }
+    }
+
     @discardableResult
     func addProject(name: String, emoji: String) -> ProjectItem {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
