@@ -49,6 +49,17 @@ final class HomeViewModel: ObservableObject {
         projects[idx] = p
     }
 
+    func deleteProject(id: UUID) {
+        // Remove the project from list
+        projects.removeAll { $0.id == id }
+        // Unassign any tasks that referenced this project
+        for i in tasks.indices {
+            if tasks[i].project?.id == id {
+                tasks[i].project = nil
+            }
+        }
+    }
+
     func addTask(
         title: String,
         project: ProjectItem?,

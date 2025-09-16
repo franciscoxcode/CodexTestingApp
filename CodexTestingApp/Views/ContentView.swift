@@ -449,6 +449,18 @@ extension ContentView {
                     }
 
                     HStack {
+                        Button(role: .destructive) {
+                            if let p = editingProject {
+                                // If currently filtered by this project, reset filter
+                                if case .project(let id) = selectedFilter, id == p.id {
+                                    selectedFilter = .none
+                                }
+                                viewModel.deleteProject(id: p.id)
+                                editingProject = nil
+                            }
+                        } label: {
+                            Text("Delete")
+                        }
                         Spacer()
                         Button("Cancel") {
                             editingProject = nil
