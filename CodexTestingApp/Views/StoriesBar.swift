@@ -8,7 +8,7 @@ struct StoriesBar: View {
     // New: tasks and current date scope for highlighting/reordering
     let tasks: [TaskItem]
     let dateScope: ContentView.DateScope
-    var onProjectLongPress: (ProjectItem) -> Void = { _ in }
+    var onProjectLongPress: ((ProjectItem) -> Void)? = nil
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -51,7 +51,7 @@ struct StoriesBar: View {
                         }
                     )
                     .simultaneousGesture(
-                        LongPressGesture(minimumDuration: 0.4).onEnded { _ in onProjectLongPress(project) }
+                        LongPressGesture(minimumDuration: 0.4).onEnded { pressed in onProjectLongPress?(project) }
                     )
                 }
             }

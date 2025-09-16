@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var isPresentingAdd = false
     @State private var editingTask: TaskItem?
     @State private var editingProject: ProjectItem?
+    @State private var userPoints: Int = 0
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -44,6 +45,31 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 6) {
+                // Row 1: top-right plus button
+                HStack {
+                    Spacer()
+                    Button {
+                        isPresentingAdd = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.headline)
+                    }
+                    .accessibilityLabel("Add Task")
+                }
+                
+
+                // Row 2: title on left, points on right
+                HStack(alignment: .center) {
+                    Text("NoteBites")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    PointsBadge(points: userPoints)
+                }
+                .padding(.top, 21)
+                .padding(.bottom, 13)
+
+                // Row 3: projects bar
                 StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter, onNew: {
                     showingAddProject = true
                 }, tasks: viewModel.tasks, dateScope: dateScope, onProjectLongPress: { project in
@@ -57,7 +83,7 @@ struct ContentView: View {
 
                 contentList
             }
-            .onChange(of: viewModel.tasks) { _, tasks in
+            .onChange(of: viewModel.tasks) { tasks in
                 // If there are no inbox tasks anymore, clear inbox filter
                 if selectedFilter == .inbox && !tasks.contains(where: { $0.project == nil }) {
                     selectedFilter = .none
@@ -68,17 +94,6 @@ struct ContentView: View {
             }
             // Removed full-screen sheet for edit project; using overlay below
             .padding()
-            .navigationTitle("NoteBites")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isPresentingAdd = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Add Task")
-                }
-            }
             .sheet(isPresented: $isPresentingAdd) {
                 let preselectedId: ProjectItem.ID? = {
                     if case .project(let id) = selectedFilter { return id }
@@ -203,7 +218,8 @@ extension ContentView {
                     projects: viewModel.projects,
                     tasks: filteredTasks,
                     onLongPress: { task in editingTask = task },
-                    onProjectTap: { project in selectedFilter = .project(project.id) }
+                    onProjectTap: { project in selectedFilter = .project(project.id) },
+                    onToggle: { task in handleToggle(task) }
                 )
             }
         } else {
@@ -215,7 +231,8 @@ extension ContentView {
                     title: headerTitle,
                     tasks: filteredTasks,
                     onLongPress: { task in editingTask = task },
-                    onProjectTap: { project in selectedFilter = .project(project.id) }
+                    onProjectTap: { project in selectedFilter = .project(project.id) },
+                    onToggle: { task in handleToggle(task) }
                 )
             }
         }
@@ -286,7 +303,8 @@ extension ContentView {
                     // Color palette (horizontal scroll to avoid overflow)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { _, color in
+                            ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
+                                let color = pair.element
                                 let isSelected = (newProjectColor?.description == color.description)
                                 Button {
                                     if isSelected { newProjectColor = nil } else { newProjectColor = color }
@@ -374,7 +392,8 @@ extension ContentView {
                     // Color palette (horizontal scroll)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            ForEach(Array(projectColorOptions.enumerated()), id: \.offset) { _, opt in
+                            ForEach(Array(projectColorOptions.enumerated()), id: \.offset) { pair in
+                                let opt = pair.element
                                 let isSelected = colorsEqual(editProjectColor, opt.color)
                                 Button {
                                     editProjectColor = isSelected ? nil : opt.color
@@ -444,4 +463,66 @@ extension ContentView {
         default: return false
         }
     }
+
+    // Toggle handler + points logic
+    private func handleToggle(_ task: TaskItem) {
+        let wasDone = task.isDone
+        viewModel.toggleTaskDone(id: task.id)
+        let delta = points(for: task)
+        if !wasDone {
+            userPoints += delta
+        } else {
+            userPoints -= delta
+            if userPoints < 0 { userPoints = 0 }
+        }
+    }
+
+    private func points(for task: TaskItem) -> Int {
+        let difficultyPoints: Int = {
+            switch task.difficulty {
+            case .easy: return 10
+            case .medium: return 20
+            case .hard: return 35
+            }
+        }()
+        let resistancePoints: Int = {
+            switch task.resistance {
+            case .low: return 5
+            case .medium: return 10
+            case .high: return 20
+            }
+        }()
+        let timePoints: Int = {
+            switch task.estimatedTime {
+            case .short: return 5
+            case .medium: return 10
+            case .long: return 15
+            }
+        }()
+        return difficultyPoints + resistancePoints + timePoints
+    }
 }
+
+// Simple points badge view (top-right)
+private struct PointsBadge: View {
+    let points: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "dollarsign.circle.fill")
+                .foregroundStyle(.yellow)
+            Text("\(points)")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Capsule().stroke(Color.secondary.opacity(0.3))
+        )
+        .clipShape(Capsule())
+    }
+}
+
+// (TitleWithPoints removed; using in-content header row instead)

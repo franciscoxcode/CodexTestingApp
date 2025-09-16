@@ -240,7 +240,8 @@ struct AddTaskView: View {
                         // Color palette (creation preview only, horizontal scroll)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
-                                ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { _, color in
+                                ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
+                                    let color = pair.element
                                     let isSelected = (newProjectColor?.description == color.description)
                                     Button {
                                         if isSelected { newProjectColor = nil } else { newProjectColor = color }

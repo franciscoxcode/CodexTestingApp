@@ -255,20 +255,21 @@ struct EditTaskView: View {
                         // Color palette (creation preview only, horizontal scroll)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
-                                ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { _, color in
-                                    let isSelected = (newProjectColor?.description == color.description)
-                                    Button {
-                                        if isSelected { newProjectColor = nil } else { newProjectColor = color }
-                                    } label: {
-                                        Circle()
-                                            .fill(color)
-                                            .frame(width: 22, height: 22)
-                                            .overlay(
-                                                Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
-                                            )
-                                    }
-                                    .buttonStyle(.plain)
+                            ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
+                                let color = pair.element
+                                let isSelected = (newProjectColor?.description == color.description)
+                                Button {
+                                    if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                } label: {
+                                    Circle()
+                                        .fill(color)
+                                        .frame(width: 22, height: 22)
+                                        .overlay(
+                                            Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                        )
                                 }
+                                .buttonStyle(.plain)
+                            }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }

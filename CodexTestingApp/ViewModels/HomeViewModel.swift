@@ -56,6 +56,11 @@ final class HomeViewModel: ObservableObject {
         tasks[idx] = current
     }
 
+    func toggleTaskDone(id: UUID) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].isDone.toggle()
+    }
+
     // Seed sample data for testing
     func seedSampleData() {
         guard tasks.isEmpty else { return }

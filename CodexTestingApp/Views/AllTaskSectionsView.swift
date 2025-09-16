@@ -5,6 +5,7 @@ struct AllTaskSectionsView: View {
     let tasks: [TaskItem]
     var onLongPress: (TaskItem) -> Void
     var onProjectTap: (ProjectItem) -> Void
+    var onToggle: (TaskItem) -> Void
 
     var body: some View {
         List {
@@ -13,7 +14,11 @@ struct AllTaskSectionsView: View {
                 if !items.isEmpty {
                     Section(header: Text(project.name)) {
                         ForEach(items) { task in
-                            TaskRow(task: task, onProjectTap: { _ in onProjectTap(project) })
+                            TaskRow(
+                                task: task,
+                                onProjectTap: { _ in onProjectTap(project) },
+                                onToggle: { _ in onToggle(task) }
+                            )
                                 .contentShape(Rectangle())
                                 .onLongPressGesture { onLongPress(task) }
                         }
@@ -24,7 +29,7 @@ struct AllTaskSectionsView: View {
             if !unassigned.isEmpty {
                 Section(header: Text("Unassigned")) {
                     ForEach(unassigned) { task in
-                        TaskRow(task: task)
+                        TaskRow(task: task, onToggle: { _ in onToggle(task) })
                             .contentShape(Rectangle())
                             .onLongPressGesture { onLongPress(task) }
                     }
@@ -34,4 +39,3 @@ struct AllTaskSectionsView: View {
         .listStyle(.plain)
     }
 }
-

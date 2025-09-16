@@ -40,7 +40,7 @@ struct DateScopeBar: View {
                 DatePicker("", selection: $scopeCustomDate, displayedComponents: .date)
                     .datePickerStyle(.graphical)
                     .labelsHidden()
-                    .onChange(of: scopeCustomDate) { _, new in
+                    .onChange(of: scopeCustomDate) { new in
                         dateScope = .custom(TaskItem.defaultDueDate(new))
                         DispatchQueue.main.async { showScopeDatePicker = false }
                     }
