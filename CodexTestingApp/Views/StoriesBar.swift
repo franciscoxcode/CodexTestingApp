@@ -15,16 +15,23 @@ struct StoriesBar: View {
                 StoryItem(title: "New", emoji: "＋", isSelected: false) { onNew() }
 
                 if hasInbox {
-                    StoryItem(title: "Unassigned", emoji: "📥", isSelected: selectedFilter == ContentView.TaskFilter.inbox) {
+                    let isInboxSelected = selectedFilter == ContentView.TaskFilter.inbox
+                    StoryItem(
+                        title: "Unassigned",
+                        emoji: "📥",
+                        isSelected: isInboxSelected,
+                        selectedRingGradient: isInboxSelected ? AngularGradient(gradient: Gradient(colors: [Color.yellow, Color.green, Color.yellow]), center: .center) : nil
+                    ) {
                         selectedFilter = (selectedFilter == ContentView.TaskFilter.inbox) ? ContentView.TaskFilter.none : ContentView.TaskFilter.inbox
                     }
                 }
 
+                let isAllSelected = selectedFilter == ContentView.TaskFilter.none
                 StoryItem(
                     title: "All",
                     emoji: "🗂️",
-                    isSelected: selectedFilter == ContentView.TaskFilter.none,
-                    selectedRingGradient: AngularGradient(gradient: Gradient(colors: [Color.yellow, Color.green, Color.yellow]), center: .center)
+                    isSelected: isAllSelected,
+                    selectedRingGradient: isAllSelected ? AngularGradient(gradient: Gradient(colors: [Color.yellow, Color.green, Color.yellow]), center: .center) : nil
                 ) {
                     selectedFilter = ContentView.TaskFilter.none
                 }

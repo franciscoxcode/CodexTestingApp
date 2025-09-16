@@ -68,8 +68,13 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isPresentingAdd) {
+                let preselectedId: ProjectItem.ID? = {
+                    if case .project(let id) = selectedFilter { return id }
+                    return nil
+                }()
                 AddTaskView(
                     projects: viewModel.projects,
+                    preSelectedProjectId: preselectedId,
                     onCreateProject: { name, emoji in
                         viewModel.addProject(name: name, emoji: emoji)
                     },

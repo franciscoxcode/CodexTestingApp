@@ -72,7 +72,13 @@ struct EditTaskView: View {
                                     ProjectChip(
                                         project: project,
                                         isSelected: selectedProjectId == project.id,
-                                        onTap: { selectedProjectId = project.id }
+                                        onTap: {
+                                            if selectedProjectId == project.id {
+                                                selectedProjectId = nil
+                                            } else {
+                                                selectedProjectId = project.id
+                                            }
+                                        }
                                     )
                                 }
                             }

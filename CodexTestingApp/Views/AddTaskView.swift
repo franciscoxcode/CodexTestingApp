@@ -32,11 +32,11 @@ struct AddTaskView: View {
     @State private var showDueInfo = false
     @State private var showCustomDatePicker = false
 
-    init(projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
+    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
         self.projects = projects
         self.onCreateProject = onCreateProject
         self.onSave = onSave
-        _selectedProjectId = State(initialValue: nil)
+        _selectedProjectId = State(initialValue: preSelectedProjectId)
         _projectList = State(initialValue: projects)
     }
 
@@ -58,7 +58,13 @@ struct AddTaskView: View {
                                     ProjectChip(
                                         project: project,
                                         isSelected: selectedProjectId == project.id,
-                                        onTap: { selectedProjectId = project.id }
+                                        onTap: {
+                                            if selectedProjectId == project.id {
+                                                selectedProjectId = nil
+                                            } else {
+                                                selectedProjectId = project.id
+                                            }
+                                        }
                                     )
                                 }
                             }
