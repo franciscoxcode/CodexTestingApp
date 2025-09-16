@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
+    @State private var newProjectColor: Color? = nil
     @State private var showingEmojiPicker = false
     // Secondary date scope filter
     enum DateScope: Equatable {
@@ -123,6 +124,9 @@ private func upcomingSaturday(from date: Date = Date()) -> Date {
 
 // MARK: - ContentView helpers extracted to reduce type-check complexity
 extension ContentView {
+    private var projectColorSwatches: [Color] {
+        [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray]
+    }
     private var hasInbox: Bool {
         viewModel.tasks.contains { $0.project == nil }
     }
@@ -233,6 +237,7 @@ extension ContentView {
                             showingAddProject = false
                             newProjectName = ""
                             newProjectEmoji = ""
+                            newProjectColor = nil
                         } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                         }
@@ -241,16 +246,39 @@ extension ContentView {
 
                     HStack(spacing: 12) {
                         Button { showingEmojiPicker = true } label: {
-                            Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
-                                .font(.system(size: 24))
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
+                            ZStack {
+                                Circle().fill(newProjectColor ?? Color.clear)
+                                Circle().fill(.ultraThinMaterial)
+                                Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
+                                    .font(.system(size: 24))
+                            }
+                            .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
 
                         TextField("Project name", text: $newProjectName)
                             .textInputAutocapitalization(.words)
+                    }
+
+                    // Color palette (horizontal scroll to avoid overflow)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { _, color in
+                                let isSelected = (newProjectColor?.description == color.description)
+                                Button {
+                                    if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                } label: {
+                                    Circle()
+                                        .fill(color)
+                                        .frame(width: 22, height: 22)
+                                        .overlay(
+                                            Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     HStack {
@@ -259,6 +287,7 @@ extension ContentView {
                             showingAddProject = false
                             newProjectName = ""
                             newProjectEmoji = ""
+                            newProjectColor = nil
                         }
                         Button("Create") {
                             let created: ProjectItem = viewModel.addProject(name: newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), emoji: newProjectEmoji)
@@ -267,6 +296,7 @@ extension ContentView {
                             showingAddProject = false
                             newProjectName = ""
                             newProjectEmoji = ""
+                            newProjectColor = nil
                         }
                         .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newProjectEmoji.isEmpty)
                     }

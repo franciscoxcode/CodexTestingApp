@@ -15,6 +15,7 @@ struct AddTaskView: View {
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
+    @State private var newProjectColor: Color? = nil
     @State private var showingEmojiPicker = false
     // Attributes
     @State private var difficulty: TaskDifficulty = .easy
@@ -215,19 +216,40 @@ struct AddTaskView: View {
                         }
 
                         HStack(spacing: 12) {
-                            Button {
-                                showingEmojiPicker = true
-                            } label: {
-                                Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
-                                    .font(.system(size: 24))
-                                    .frame(width: 44, height: 44)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Circle())
+                            Button { showingEmojiPicker = true } label: {
+                                ZStack {
+                                    Circle().fill(newProjectColor ?? Color.clear)
+                                    Circle().fill(.ultraThinMaterial)
+                                    Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
+                                        .font(.system(size: 24))
+                                }
+                                .frame(width: 44, height: 44)
                             }
                             .buttonStyle(.plain)
 
                             TextField("Project name", text: $newProjectName)
                                 .textInputAutocapitalization(.words)
+                        }
+
+                        // Color palette (creation preview only, horizontal scroll)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { _, color in
+                                    let isSelected = (newProjectColor?.description == color.description)
+                                    Button {
+                                        if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                    } label: {
+                                        Circle()
+                                            .fill(color)
+                                            .frame(width: 22, height: 22)
+                                            .overlay(
+                                                Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
                         HStack {
@@ -236,6 +258,7 @@ struct AddTaskView: View {
                                 showingAddProject = false
                                 newProjectName = ""
                                 newProjectEmoji = ""
+                                newProjectColor = nil
                             }
                             Button("Create") {
                                 let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
@@ -244,6 +267,7 @@ struct AddTaskView: View {
                                 showingAddProject = false
                                 newProjectName = ""
                                 newProjectEmoji = ""
+                                newProjectColor = nil
                             }
                             .disabled(!canCreateProject)
                         }
@@ -292,6 +316,8 @@ struct AddTaskView: View {
 }
 
 // MARK: - Date helpers
+private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+
 private func nextWeekday(_ weekday: Int, from date: Date = Date()) -> Date {
     var cal = Calendar.current
     cal.firstWeekday = 1 // Sunday
