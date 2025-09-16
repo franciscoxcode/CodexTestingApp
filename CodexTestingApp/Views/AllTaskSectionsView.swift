@@ -6,6 +6,8 @@ struct AllTaskSectionsView: View {
     var onLongPress: (TaskItem) -> Void
     var onProjectTap: (ProjectItem) -> Void
     var onToggle: (TaskItem) -> Void
+    var onEdit: (TaskItem) -> Void = { _ in }
+    var onDelete: (TaskItem) -> Void = { _ in }
 
     var body: some View {
         List {
@@ -17,10 +19,11 @@ struct AllTaskSectionsView: View {
                             TaskRow(
                                 task: task,
                                 onProjectTap: { _ in onProjectTap(project) },
-                                onToggle: { _ in onToggle(task) }
+                                onToggle: { _ in onToggle(task) },
+                                onEdit: { _ in onEdit(task) },
+                                onDelete: { _ in onDelete(task) }
                             )
-                                .contentShape(Rectangle())
-                                .onLongPressGesture { onLongPress(task) }
+                            .contentShape(Rectangle())
                         }
                     }
                 }
@@ -29,9 +32,8 @@ struct AllTaskSectionsView: View {
             if !unassigned.isEmpty {
                 Section(header: Text("Unassigned")) {
                     ForEach(unassigned) { task in
-                        TaskRow(task: task, onToggle: { _ in onToggle(task) })
+                        TaskRow(task: task, onToggle: { _ in onToggle(task) }, onEdit: { _ in onEdit(task) }, onDelete: { _ in onDelete(task) })
                             .contentShape(Rectangle())
-                            .onLongPressGesture { onLongPress(task) }
                     }
                 }
             }

@@ -4,6 +4,8 @@ struct TaskRow: View {
     let task: TaskItem
     var onProjectTap: ((ProjectItem) -> Void)? = nil
     var onToggle: ((TaskItem) -> Void)? = nil
+    var onEdit: ((TaskItem) -> Void)? = nil
+    var onDelete: ((TaskItem) -> Void)? = nil
     var showCompletedStyle: Bool = true
 
     var body: some View {
@@ -32,5 +34,21 @@ struct TaskRow: View {
             }
         }
         .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            // Full swipe triggers the first action (Delete)
+            Button(role: .destructive) {
+                onDelete?(task)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
+
+            Button {
+                onEdit?(task)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(.blue)
+        }
     }
 }

@@ -6,6 +6,8 @@ struct TaskFlatListView: View {
     var onLongPress: (TaskItem) -> Void
     var onProjectTap: (ProjectItem) -> Void
     var onToggle: (TaskItem) -> Void
+    var onEdit: (TaskItem) -> Void = { _ in }
+    var onDelete: (TaskItem) -> Void = { _ in }
 
     var body: some View {
         List {
@@ -14,10 +16,11 @@ struct TaskFlatListView: View {
                     TaskRow(
                         task: task,
                         onProjectTap: { project in onProjectTap(project) },
-                        onToggle: { _ in onToggle(task) }
+                        onToggle: { _ in onToggle(task) },
+                        onEdit: { _ in onEdit(task) },
+                        onDelete: { _ in onDelete(task) }
                     )
-                        .contentShape(Rectangle())
-                        .onLongPressGesture { onLongPress(task) }
+                    .contentShape(Rectangle())
                 }
             }
         }

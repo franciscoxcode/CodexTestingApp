@@ -241,9 +241,11 @@ extension ContentView {
                 AllTaskSectionsView(
                     projects: viewModel.projects,
                     tasks: filteredTasks,
-                    onLongPress: { task in editingTask = task },
+                    onLongPress: { _ in },
                     onProjectTap: { project in selectedFilter = .project(project.id) },
-                    onToggle: { task in handleToggle(task) }
+                    onToggle: { task in handleToggle(task) },
+                    onEdit: { task in editingTask = task },
+                    onDelete: { task in viewModel.deleteTask(id: task.id) }
                 )
             }
         } else {
@@ -255,17 +257,21 @@ extension ContentView {
                 case (.project, .anytime):
                     TasksByDueDateView(
                         tasks: filteredTasks,
-                        onLongPress: { task in editingTask = task },
+                        onLongPress: { _ in },
                         onProjectTap: { project in selectedFilter = .project(project.id) },
-                        onToggle: { task in handleToggle(task) }
+                        onToggle: { task in handleToggle(task) },
+                        onEdit: { task in editingTask = task },
+                        onDelete: { task in viewModel.deleteTask(id: task.id) }
                     )
                 default:
                     TaskFlatListView(
                         title: headerTitle,
                         tasks: filteredTasks,
-                        onLongPress: { task in editingTask = task },
+                        onLongPress: { _ in },
                         onProjectTap: { project in selectedFilter = .project(project.id) },
-                        onToggle: { task in handleToggle(task) }
+                        onToggle: { task in handleToggle(task) },
+                        onEdit: { task in editingTask = task },
+                        onDelete: { task in viewModel.deleteTask(id: task.id) }
                     )
                 }
             }
