@@ -80,7 +80,7 @@ struct ProjectStoryItem: View {
                     .lineLimit(1)
                     .frame(width: 64)
             }
-            .opacity(dimmed ? 0.45 : 1)
+            .opacity((dimmed && !isSelected) ? 0.45 : 1)
         }
         .buttonStyle(.plain)
     }

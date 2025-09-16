@@ -64,10 +64,8 @@ struct StoriesBar: View {
 // MARK: - Helpers
 extension StoriesBar {
     private func shouldDimProjects() -> Bool {
-        switch dateScope {
-        case .anytime: return false
-        default: return true
-        }
+        // Apply dimming and grouping for all scopes, including .anytime
+        return true
     }
 
     private func orderedProjects() -> [ProjectItem] {
