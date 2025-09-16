@@ -41,6 +41,8 @@ struct ContentView: View {
     @State private var editProjectName: String = ""
     @State private var editProjectEmoji: String = ""
     @State private var editProjectColor: Color? = nil
+    // Pending hide window for recently completed tasks
+    @State private var pendingHideUntil: [UUID: Date] = [:]
 
     var body: some View {
         NavigationStack {
@@ -184,21 +186,31 @@ extension ContentView {
     }
 
     private var filteredTasks: [TaskItem] {
-        switch dateScope {
-        case .anytime:
-            return baseTasks
-        case .today:
-            let today: Date = TaskItem.defaultDueDate()
-            return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == today }
-        case .tomorrow:
-            let target: Date = TaskItem.defaultDueDate(nextDays(1))
-            return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
-        case .weekend:
-            let target: Date = TaskItem.defaultDueDate(upcomingSaturday())
-            return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
-        case .custom(let d):
-            let target: Date = TaskItem.defaultDueDate(d)
-            return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
+        // Base by date scope
+        let scoped: [TaskItem] = {
+            switch dateScope {
+            case .anytime:
+                return baseTasks
+            case .today:
+                let today: Date = TaskItem.defaultDueDate()
+                return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == today }
+            case .tomorrow:
+                let target: Date = TaskItem.defaultDueDate(nextDays(1))
+                return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
+            case .weekend:
+                let target: Date = TaskItem.defaultDueDate(upcomingSaturday())
+                return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
+            case .custom(let d):
+                let target: Date = TaskItem.defaultDueDate(d)
+                return baseTasks.filter { TaskItem.defaultDueDate($0.dueDate) == target }
+            }
+        }()
+        // Hide completed tasks except during grace window
+        let now = Date()
+        return scoped.filter { task in
+            guard task.isDone else { return true }
+            if let until = pendingHideUntil[task.id], until > now { return true }
+            return false
         }
     }
 
@@ -477,9 +489,20 @@ extension ContentView {
         let delta = points(for: task)
         if !wasDone {
             userPoints += delta
+            // Show for ~2 seconds before hiding from lists
+            let until = Date().addingTimeInterval(2)
+            pendingHideUntil[task.id] = until
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                // If still completed, remove grace period so it disappears
+                if let current = viewModel.tasks.first(where: { $0.id == task.id }), current.isDone {
+                    pendingHideUntil[task.id] = nil
+                }
+            }
         } else {
             userPoints -= delta
             if userPoints < 0 { userPoints = 0 }
+            // Cancel any pending hide if user reverted
+            pendingHideUntil[task.id] = nil
         }
     }
 

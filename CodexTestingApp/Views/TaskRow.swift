@@ -13,6 +13,8 @@ struct TaskRow: View {
             }
             .buttonStyle(.plain)
             Text(task.title)
+                .strikethrough(task.isDone, color: .secondary)
+                .foregroundStyle(task.isDone ? .secondary : .primary)
             Spacer(minLength: 8)
             if let project = task.project {
                 Button(action: { onProjectTap?(project) }) {
