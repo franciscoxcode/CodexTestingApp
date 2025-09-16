@@ -110,7 +110,7 @@ struct AddTaskView: View {
                                     dueDate = TaskItem.defaultDueDate(nextWeekMonday())
                                     showCustomDatePicker = false
                                 }
-                                SelectableChip(title: "Pick date…", isSelected: duePreset == .custom, color: .blue) {
+                                SelectableChip(title: (duePreset == .custom ? shortDateLabel(dueDate) : "Pick date…"), isSelected: duePreset == .custom, color: .blue) {
                                     if duePreset != .custom {
                                         duePreset = .custom
                                         showCustomDatePicker = true
@@ -124,6 +124,11 @@ struct AddTaskView: View {
                             DatePicker("", selection: $dueDate, displayedComponents: .date)
                                 .datePickerStyle(.graphical)
                                 .labelsHidden()
+                                .onChangeCompat(of: dueDate) { _, new in
+                                    // Normalize and auto-close picker after selection
+                                    dueDate = TaskItem.defaultDueDate(new)
+                                    showCustomDatePicker = false
+                                }
                         }
                     }
 
@@ -324,6 +329,17 @@ struct AddTaskView: View {
 
 // MARK: - Date helpers
 private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+
+private func shortDateLabel(_ date: Date) -> String {
+    let cal = Calendar.current
+    let now = Date()
+    let normalized = TaskItem.defaultDueDate(date)
+    if normalized == TaskItem.defaultDueDate(now) { return "Today" }
+    if normalized == TaskItem.defaultDueDate(cal.date(byAdding: .day, value: 1, to: now) ?? now) { return "Tomorrow" }
+    let df = DateFormatter()
+    df.dateFormat = "MMM d" // concise
+    return df.string(from: normalized)
+}
 
 private func nextWeekday(_ weekday: Int, from date: Date = Date()) -> Date {
     var cal = Calendar.current

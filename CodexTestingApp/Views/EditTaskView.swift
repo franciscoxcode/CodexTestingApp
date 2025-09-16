@@ -56,6 +56,17 @@ struct EditTaskView: View {
         _showCustomDatePicker = State(initialValue: preset == .custom)
     }
 
+    private func shortDateLabel(_ date: Date) -> String {
+        let cal = Calendar.current
+        let now = Date()
+        let normalized = TaskItem.defaultDueDate(date)
+        if normalized == TaskItem.defaultDueDate(now) { return "Today" }
+        if normalized == TaskItem.defaultDueDate(cal.date(byAdding: .day, value: 1, to: now) ?? now) { return "Tomorrow" }
+        let df = DateFormatter()
+        df.dateFormat = "MMM d"
+        return df.string(from: normalized)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -126,7 +137,7 @@ struct EditTaskView: View {
                                     dueDate = TaskItem.defaultDueDate(nextWeekMonday())
                                     showCustomDatePicker = false
                                 }
-                                SelectableChip(title: "Pick date…", isSelected: duePreset == .custom, color: .blue) {
+                                SelectableChip(title: (duePreset == .custom ? shortDateLabel(dueDate) : "Pick date…"), isSelected: duePreset == .custom, color: .blue) {
                                     if duePreset != .custom {
                                         duePreset = .custom
                                         showCustomDatePicker = true
@@ -140,6 +151,10 @@ struct EditTaskView: View {
                             DatePicker("", selection: $dueDate, displayedComponents: .date)
                                 .datePickerStyle(.graphical)
                                 .labelsHidden()
+                                .onChangeCompat(of: dueDate) { _, new in
+                                    dueDate = TaskItem.defaultDueDate(new)
+                                    showCustomDatePicker = false
+                                }
                         }
                     }
 
