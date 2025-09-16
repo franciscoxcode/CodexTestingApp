@@ -74,7 +74,11 @@ struct AddTaskView: View {
                             .submitLabel(.done)
                     }
 
-                    Section(header: Text("Project")) {
+                    Section {
+                        HStack(spacing: 8) {
+                            Text("Project").font(.headline)
+                            Spacer()
+                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 NewProjectChip { showingAddProject = true }
@@ -156,7 +160,67 @@ struct AddTaskView: View {
                         }
                     }
 
-                    
+                    // Reminder
+                    Section {
+                        HStack {
+                            Toggle(isOn: $hasReminder) {
+                                Text("Reminder")
+                                    .font(.headline)
+                            }
+                            .onChange(of: hasReminder) { newValue in
+                                if newValue {
+                                    NotificationManager.shared.requestAuthorizationIfNeeded()
+                                }
+                            }
+                        }
+                        if hasReminder {
+                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
+                        }
+                    }
+
+                    // Repeat (preview-only for Phase 2)
+                    Section {
+                        Toggle("Repeat", isOn: $repeatEnabled)
+                        if repeatEnabled {
+                            HStack {
+                                Stepper(value: $repeatInterval, in: 1...999) {
+                                    Text("Every \(repeatInterval)")
+                                }
+                                Picker("Unit", selection: $repeatUnit) {
+                                    Text("min").tag(RecurrenceUnit.minutes)
+                                    Text("hr").tag(RecurrenceUnit.hours)
+                                    Text("days").tag(RecurrenceUnit.days)
+                                    Text("weeks").tag(RecurrenceUnit.weeks)
+                                    Text("months").tag(RecurrenceUnit.months)
+                                    Text("years").tag(RecurrenceUnit.years)
+                                }
+                                .pickerStyle(.menu)
+                            }
+                            Picker("From", selection: $repeatBasis) {
+                                Text("Scheduled").tag(RecurrenceBasis.scheduled)
+                                Text("Completion").tag(RecurrenceBasis.completion)
+                            }
+                            .pickerStyle(.segmented)
+                            Picker("Scope", selection: $repeatScope) {
+                                Text("All days").tag(RecurrenceScope.allDays)
+                                Text("Weekdays").tag(RecurrenceScope.weekdaysOnly)
+                                Text("Weekends").tag(RecurrenceScope.weekendsOnly)
+                            }
+                            .pickerStyle(.segmented)
+                            Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
+                            if repeatCountLimitEnabled {
+                                Stepper(value: $repeatCountLimit, in: 1...1000) {
+                                    Text("Up to \(repeatCountLimit) times")
+                                }
+                            }
+                            if let preview = repeatPreview() {
+                                Text("Next: \(dateTimeFormatter.string(from: preview))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
 
                     // Difficulty
                     Section {
@@ -233,67 +297,7 @@ struct AddTaskView: View {
                         }
                     }
 
-                    // Repeat (preview-only for Phase 2)
-                    Section {
-                        Toggle("Repeat", isOn: $repeatEnabled)
-                        if repeatEnabled {
-                            HStack {
-                                Stepper(value: $repeatInterval, in: 1...999) {
-                                    Text("Every \(repeatInterval)")
-                                }
-                                Picker("Unit", selection: $repeatUnit) {
-                                    Text("min").tag(RecurrenceUnit.minutes)
-                                    Text("hr").tag(RecurrenceUnit.hours)
-                                    Text("days").tag(RecurrenceUnit.days)
-                                    Text("weeks").tag(RecurrenceUnit.weeks)
-                                    Text("months").tag(RecurrenceUnit.months)
-                                    Text("years").tag(RecurrenceUnit.years)
-                                }
-                                .pickerStyle(.menu)
-                            }
-                            Picker("From", selection: $repeatBasis) {
-                                Text("Scheduled").tag(RecurrenceBasis.scheduled)
-                                Text("Completion").tag(RecurrenceBasis.completion)
-                            }
-                            .pickerStyle(.segmented)
-                            Picker("Scope", selection: $repeatScope) {
-                                Text("All days").tag(RecurrenceScope.allDays)
-                                Text("Weekdays").tag(RecurrenceScope.weekdaysOnly)
-                                Text("Weekends").tag(RecurrenceScope.weekendsOnly)
-                            }
-                            .pickerStyle(.segmented)
-                            Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
-                            if repeatCountLimitEnabled {
-                                Stepper(value: $repeatCountLimit, in: 1...1000) {
-                                    Text("Up to \(repeatCountLimit) times")
-                                }
-                            }
-                            if let preview = repeatPreview() {
-                                Text("Next: \(dateTimeFormatter.string(from: preview))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    // Reminder (moved after Repeat)
-                    Section {
-                        HStack {
-                            Toggle(isOn: $hasReminder) {
-                                Text("Reminder")
-                                    .font(.headline)
-                            }
-                            .onChange(of: hasReminder) { newValue in
-                                if newValue {
-                                    NotificationManager.shared.requestAuthorizationIfNeeded()
-                                }
-                            }
-                        }
-                        if hasReminder {
-                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
-                                .datePickerStyle(.compact)
-                        }
-                    }
+                    
                 }
                 // Popup centered overlay
                 if showingAddProject {
