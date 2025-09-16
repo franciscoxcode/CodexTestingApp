@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import Combine
+import UIKit
 
 struct ContentView: View {
     @StateObject private var viewModel = HomeViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isPresentingAdd = false
     @State private var editingTask: TaskItem?
     @State private var editingProject: ProjectItem?
@@ -42,6 +45,8 @@ struct ContentView: View {
     @State private var dateScope: DateScope = .today
     @State private var showScopeDatePicker = false
     @State private var scopeCustomDate: Date = TaskItem.defaultDueDate()
+    // Anchor to trigger recalculation on day/phase changes
+    @State private var timeAnchor: Date = Date()
     // Edit project popup state
     @State private var editProjectName: String = ""
     @State private var editProjectEmoji: String = ""
@@ -56,6 +61,7 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     #if DEBUG
+                    #if targetEnvironment(simulator)
                     Button {
                         viewModel.resetAndSeedSampleData()
                         userPoints = 0
@@ -66,6 +72,7 @@ struct ContentView: View {
                     }
                     .accessibilityLabel("Reset Sample Data")
                     .padding(.trailing, 8)
+                    #endif
                     #endif
                     Button {
                         isPresentingAdd = true
@@ -153,9 +160,24 @@ struct ContentView: View {
                 // Load persisted points
                 userPoints = UserDefaults.standard.integer(forKey: "userPoints")
 
+                // Only seed sample data in Debug + Simulator to keep
+                // physical devices/installations starting empty.
+                #if DEBUG
+                #if targetEnvironment(simulator)
                 if viewModel.tasks.isEmpty {
                     viewModel.seedSampleData()
                 }
+                #endif
+                #endif
+            }
+            // Refresh date-scoped views when app becomes active or clock changes significantly
+            .onChangeCompat(of: scenePhase) { _, phase in
+                if phase == .active {
+                    timeAnchor = Date()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                timeAnchor = Date()
             }
             .onChangeCompat(of: userPoints) { _, newValue in
                 UserDefaults.standard.set(newValue, forKey: "userPoints")
@@ -264,6 +286,7 @@ extension ContentView {
     }
 
     private var filteredTasks: [TaskItem] {
+        _ = timeAnchor // depend on anchor so date-based filters refresh
         // Base by date scope
         let scoped: [TaskItem] = {
             switch dateScope {
@@ -337,6 +360,7 @@ extension ContentView {
                         onDelete: { task in pendingDeleteTask = task },
                         onMoveMenu: { task in pendingMoveTask = task }
                     )
+                    .id(timeAnchor) // force regrouping headers on day change
                 default:
                     TaskFlatListView(
                         title: headerTitle,

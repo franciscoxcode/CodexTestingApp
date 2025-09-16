@@ -37,6 +37,8 @@ final class HomeViewModel: ObservableObject {
         let trimmedEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
         let project = ProjectItem(name: trimmedName, emoji: trimmedEmoji.isEmpty ? "📁" : trimmedEmoji)
         projects.append(project)
+        // Persist immediately to avoid losing data if app is killed before Combine sink fires
+        saveProjects()
         return project
     }
 
@@ -47,6 +49,7 @@ final class HomeViewModel: ObservableObject {
         p.emoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
         p.colorName = colorName
         projects[idx] = p
+        saveProjects()
     }
 
     func deleteProject(id: UUID) {
@@ -58,6 +61,9 @@ final class HomeViewModel: ObservableObject {
                 tasks[i].project = nil
             }
         }
+        // Persist both since tasks may have been modified
+        saveProjects()
+        saveTasks()
     }
 
     func addTask(
@@ -71,6 +77,7 @@ final class HomeViewModel: ObservableObject {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         tasks.append(TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate))
+        saveTasks()
     }
 
     func updateTask(
@@ -91,6 +98,7 @@ final class HomeViewModel: ObservableObject {
         current.estimatedTime = estimatedTime
         current.dueDate = dueDate
         tasks[idx] = current
+        saveTasks()
     }
 
     func toggleTaskDone(id: UUID) {
@@ -101,15 +109,18 @@ final class HomeViewModel: ObservableObject {
         } else {
             tasks[idx].completedAt = nil
         }
+        saveTasks()
     }
 
     func setTaskDueDate(id: UUID, dueDate: Date) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[idx].dueDate = TaskItem.defaultDueDate(dueDate)
+        saveTasks()
     }
 
     func deleteTask(id: UUID) {
         tasks.removeAll { $0.id == id }
+        saveTasks()
     }
 
     // Seed sample data for testing
