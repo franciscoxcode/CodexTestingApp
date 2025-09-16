@@ -4,6 +4,23 @@ import Combine
 final class HomeViewModel: ObservableObject {
     @Published var tasks: [TaskItem] = []
     @Published var projects: [ProjectItem] = []
+    private var cancellables: Set<AnyCancellable> = []
+
+    init() {
+        loadProjects()
+        loadTasks()
+
+        // Persist on changes
+        $projects
+            .dropFirst()
+            .sink { [weak self] _ in self?.saveProjects() }
+            .store(in: &cancellables)
+
+        $tasks
+            .dropFirst()
+            .sink { [weak self] _ in self?.saveTasks() }
+            .store(in: &cancellables)
+    }
 
     @discardableResult
     func addProject(name: String, emoji: String) -> ProjectItem {
@@ -104,6 +121,56 @@ final class HomeViewModel: ObservableObject {
         addTask(title: "Plan weekend picnic", project: weekendProject, dueDate: saturday)
         addTask(title: "Hike the trail", project: weekendProject, dueDate: saturday)
         addTask(title: "Movie night prep", project: weekendProject, dueDate: saturday)
+    }
+
+    // MARK: - Persistence
+    private var documentsDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    }
+
+    private var tasksFileURL: URL { documentsDirectory.appendingPathComponent("tasks.json") }
+    private var projectsFileURL: URL { documentsDirectory.appendingPathComponent("projects.json") }
+
+    private func saveTasks() {
+        do {
+            let data = try JSONEncoder().encode(tasks)
+            try data.write(to: tasksFileURL, options: [.atomic])
+        } catch {
+            print("Failed to save tasks: \(error)")
+        }
+    }
+
+    private func saveProjects() {
+        do {
+            let data = try JSONEncoder().encode(projects)
+            try data.write(to: projectsFileURL, options: [.atomic])
+        } catch {
+            print("Failed to save projects: \(error)")
+        }
+    }
+
+    private func loadTasks() {
+        do {
+            let url = tasksFileURL
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder().decode([TaskItem].self, from: data)
+            self.tasks = decoded
+        } catch {
+            print("Failed to load tasks: \(error)")
+        }
+    }
+
+    private func loadProjects() {
+        do {
+            let url = projectsFileURL
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder().decode([ProjectItem].self, from: data)
+            self.projects = decoded
+        } catch {
+            print("Failed to load projects: \(error)")
+        }
     }
 }
 

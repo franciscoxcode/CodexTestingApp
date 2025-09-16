@@ -111,9 +111,15 @@ struct ContentView: View {
                 )
             }
             .onAppear {
+                // Load persisted points
+                userPoints = UserDefaults.standard.integer(forKey: "userPoints")
+
                 if viewModel.tasks.isEmpty {
                     viewModel.seedSampleData()
                 }
+            }
+            .onChange(of: userPoints) { newValue in
+                UserDefaults.standard.set(newValue, forKey: "userPoints")
             }
             // New Project popup overlay
             .overlay(alignment: .center) { newProjectOverlay() }
