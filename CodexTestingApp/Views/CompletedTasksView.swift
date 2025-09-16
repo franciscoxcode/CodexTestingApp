@@ -4,15 +4,24 @@ struct CompletedTasksView: View {
     let tasks: [TaskItem]
     var onUncomplete: (TaskItem) -> Void
     var onClose: () -> Void
+    var onProjectTap: (ProjectItem) -> Void = { _ in }
 
     var body: some View {
         NavigationStack {
             List {
-                // Sections grouped by completion day
+                // Sections grouped by completion day with daily total points
                 ForEach(groupedSections, id: \.title) { section in
-                    Section(header: Text(section.title)) {
+                    Section(header: headerView(title: section.title, totalPoints: section.totalPoints)) {
                         ForEach(section.items) { task in
-                            TaskRow(task: task, onToggle: { _ in onUncomplete(task) }, showCompletedStyle: false)
+                            let pts = points(for: task)
+                            TaskRow(
+                                task: task,
+                                onProjectTap: { project in onProjectTap(project) },
+                                onToggle: { _ in onUncomplete(task) },
+                                showCompletedStyle: false,
+                                trailingInfo: "+\(pts)",
+                                showProjectName: false
+                            )
                         }
                     }
                 }
@@ -29,7 +38,7 @@ struct CompletedTasksView: View {
 
     private var completed: [TaskItem] { tasks.filter { $0.isDone } }
 
-    private var groupedSections: [(title: String, items: [TaskItem])] {
+    private var groupedSections: [(title: String, items: [TaskItem], totalPoints: Int)] {
         let today = normalized(Date())
         let yesterday = normalized(Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
 
@@ -54,7 +63,19 @@ struct CompletedTasksView: View {
                 let db = b.completedAt ?? Date.distantPast
                 return da > db
             }
-            return (title, items)
+            let total = items.reduce(0) { $0 + points(for: $1) }
+            return (title, items, total)
+        }
+    }
+
+    @ViewBuilder
+    private func headerView(title: String, totalPoints: Int) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text("\(totalPoints) pts")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -67,5 +88,31 @@ struct CompletedTasksView: View {
         df.dateStyle = .medium
         df.timeStyle = .none
         return df
+    }
+
+    // Points calculation mirrors ContentView.points(for:)
+    private func points(for task: TaskItem) -> Int {
+        let difficultyPoints: Int = {
+            switch task.difficulty {
+            case .easy: return 10
+            case .medium: return 20
+            case .hard: return 35
+            }
+        }()
+        let resistancePoints: Int = {
+            switch task.resistance {
+            case .low: return 5
+            case .medium: return 10
+            case .high: return 20
+            }
+        }()
+        let timePoints: Int = {
+            switch task.estimatedTime {
+            case .short: return 5
+            case .medium: return 10
+            case .long: return 15
+            }
+        }()
+        return difficultyPoints + resistancePoints + timePoints
     }
 }

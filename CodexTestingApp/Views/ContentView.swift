@@ -692,7 +692,11 @@ extension ContentView {
         CompletedTasksView(
             tasks: viewModel.tasks,
             onUncomplete: { task in handleToggle(task) },
-            onClose: { showingCompletedSheet = false }
+            onClose: { showingCompletedSheet = false },
+            onProjectTap: { project in
+                selectedFilter = .project(project.id)
+                showingCompletedSheet = false
+            }
         )
     }
 

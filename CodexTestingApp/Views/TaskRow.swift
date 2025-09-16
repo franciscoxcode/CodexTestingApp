@@ -8,31 +8,47 @@ struct TaskRow: View {
     var onDelete: ((TaskItem) -> Void)? = nil
     var onMoveMenu: ((TaskItem) -> Void)? = nil
     var showCompletedStyle: Bool = true
+    // Optional trailing info (e.g., +points in Completed list)
+    var trailingInfo: String? = nil
+    // Control whether to show project name next to emoji
+    var showProjectName: Bool = true
     @State private var showDeleteConfirm = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Button(action: { onToggle?(task) }) {
                 Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(task.isDone ? .green : .secondary)
             }
             .buttonStyle(.plain)
+
             let renderAsDone = showCompletedStyle && task.isDone
             Text(task.title)
                 .strikethrough(renderAsDone, color: .secondary)
                 .foregroundStyle(renderAsDone ? .secondary : .primary)
+
             Spacer(minLength: 8)
-            if let project = task.project {
-                Button(action: { onProjectTap?(project) }) {
-                    HStack(spacing: 4) {
-                        Text(project.emoji)
-                        Text(project.name)
+
+            HStack(spacing: 8) {
+                if let project = task.project {
+                    Button(action: { onProjectTap?(project) }) {
+                        HStack(spacing: 4) {
+                            Text(project.emoji)
+                            if showProjectName {
+                                Text(project.name)
+                            }
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                if let info = trailingInfo {
+                    Text(info)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .listRowSeparator(.hidden)
