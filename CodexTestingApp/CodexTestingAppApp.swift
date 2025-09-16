@@ -6,9 +6,15 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct CodexTestingAppApp: App {
+    init() {
+        // Configure notifications delegate early
+        NotificationManager.shared.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

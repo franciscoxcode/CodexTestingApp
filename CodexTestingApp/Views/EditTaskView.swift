@@ -6,7 +6,7 @@ struct EditTaskView: View {
     // Inputs
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
-    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void
+    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
     var onDelete: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +23,9 @@ struct EditTaskView: View {
     @State private var duePreset: DuePreset
     @State private var dueDate: Date
     @State private var showCustomDatePicker: Bool
+    // Reminder
+    @State private var hasReminder: Bool
+    @State private var reminderTime: Date
 
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
@@ -36,7 +39,7 @@ struct EditTaskView: View {
     @State private var showEstimatedInfo = false
     @State private var showDueInfo = false
 
-    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void, onDelete: (() -> Void)? = nil) {
+    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void, onDelete: (() -> Void)? = nil) {
         self.task = task
         self.projects = projects
         self.onCreateProject = onCreateProject
@@ -54,6 +57,13 @@ struct EditTaskView: View {
         _duePreset = State(initialValue: preset)
         _dueDate = State(initialValue: task.dueDate)
         _showCustomDatePicker = State(initialValue: preset == .custom)
+        if let when = task.reminderAt {
+            _hasReminder = State(initialValue: true)
+            _reminderTime = State(initialValue: when)
+        } else {
+            _hasReminder = State(initialValue: false)
+            _reminderTime = State(initialValue: Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+        }
     }
 
     private func shortDateLabel(_ date: Date) -> String {
@@ -75,6 +85,23 @@ struct EditTaskView: View {
                         TextField("Enter task title", text: $title)
                             .textInputAutocapitalization(.sentences)
                             .submitLabel(.done)
+                    }
+
+                    // Reminder
+                    Section {
+                        HStack {
+                            Toggle(isOn: $hasReminder) {
+                                Text("Reminder")
+                                    .font(.headline)
+                            }
+                            .onChange(of: hasReminder) { newValue in
+                                if newValue { NotificationManager.shared.requestAuthorizationIfNeeded() }
+                            }
+                        }
+                        if hasReminder {
+                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
+                        }
                     }
 
                     Section(header: Text("Project")) {
@@ -247,87 +274,90 @@ struct EditTaskView: View {
 
                 // Popup centered overlay (new project)
                 if showingAddProject {
-                    Color.black.opacity(0.25)
-                        .ignoresSafeArea()
+                    ZStack {
+                        Color.black.opacity(0.25)
+                            .ignoresSafeArea()
 
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("New Project").font(.headline)
-                            Spacer()
-                            Button {
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button { showingEmojiPicker = true } label: {
-                                ZStack {
-                                    Circle().fill(newProjectColor ?? Color.clear)
-                                    Circle().fill(.ultraThinMaterial)
-                                    Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
-                                        .font(.system(size: 24))
-                                }
-                                .frame(width: 44, height: 44)
-                            }
-                            .buttonStyle(.plain)
-
-                            TextField("Project name", text: $newProjectName)
-                                .textInputAutocapitalization(.words)
-                        }
-
-                        // Color palette (creation preview only, horizontal scroll)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                            ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
-                                let color = pair.element
-                                let isSelected = (newProjectColor?.description == color.description)
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("New Project").font(.headline)
+                                Spacer()
                                 Button {
-                                    if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
                                 } label: {
-                                    Circle()
-                                        .fill(color)
-                                        .frame(width: 22, height: 22)
-                                        .overlay(
-                                            Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
-                                        )
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
                             }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
 
-                        HStack {
-                            Spacer()
-                            Button("Cancel") {
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                                newProjectColor = nil
+                            HStack(spacing: 12) {
+                                Button { showingEmojiPicker = true } label: {
+                                    ZStack {
+                                        Circle().fill(newProjectColor ?? Color.clear)
+                                        Circle().fill(.ultraThinMaterial)
+                                        Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
+                                            .font(.system(size: 24))
+                                    }
+                                    .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(.plain)
+
+                                TextField("Project name", text: $newProjectName)
+                                    .textInputAutocapitalization(.words)
                             }
-                            Button("Create") {
-                                let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
-                                projectList.append(created)
-                                selectedProjectId = created.id
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                                newProjectColor = nil
+
+                            // Color palette (creation preview only, horizontal scroll)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
+                                        let color = pair.element
+                                        let isSelected = (newProjectColor?.description == color.description)
+                                        Button {
+                                            if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                        } label: {
+                                            Circle()
+                                                .fill(color)
+                                                .frame(width: 22, height: 22)
+                                                .overlay(
+                                                    Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .disabled(!canCreateProject)
+
+                            HStack {
+                                Spacer()
+                                Button("Cancel") {
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
+                                    newProjectColor = nil
+                                }
+                                Button("Create") {
+                                    let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
+                                    projectList.append(created)
+                                    selectedProjectId = created.id
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
+                                    newProjectColor = nil
+                                }
+                                .disabled(!canCreateProject)
+                            }
                         }
+                        .padding(16)
+                        .frame(maxWidth: 360)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(radius: 20)
+                        .offset(y: -140)
                     }
-                    .padding(16)
-                    .frame(maxWidth: 360)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(radius: 20)
-                    .offset(y: -140)
+                    .ignoresSafeArea(.keyboard)
                 }
             }
             .navigationTitle("Edit Task")
@@ -354,7 +384,8 @@ struct EditTaskView: View {
 
     private func save() {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
-        onSave(title, project, difficulty, resistance, estimated, dueDate)
+        let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
+        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
         dismiss()
     }
 
@@ -400,6 +431,16 @@ private func nextWeekMonday(from date: Date = Date()) -> Date {
 
 private func nextDays(_ days: Int, from date: Date = Date()) -> Date {
     Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
+}
+
+private func combineDayAndTime(_ day: Date, _ time: Date) -> Date {
+    let cal = Calendar.current
+    let d = TaskItem.defaultDueDate(day)
+    let hm = cal.dateComponents([.hour, .minute], from: time)
+    var comps = cal.dateComponents([.year, .month, .day], from: d)
+    comps.hour = hm.hour
+    comps.minute = hm.minute
+    return cal.date(from: comps) ?? day
 }
 
 private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }

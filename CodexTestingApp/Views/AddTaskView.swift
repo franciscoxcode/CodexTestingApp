@@ -7,7 +7,7 @@ struct AddTaskView: View {
     // Projects input and callbacks
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
-    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void
+    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
 
     // Selection state
     @State private var selectedProjectId: ProjectItem.ID?
@@ -31,14 +31,19 @@ struct AddTaskView: View {
     @State private var dueDate: Date = TaskItem.defaultDueDate()
     @State private var showDueInfo = false
     @State private var showCustomDatePicker = false
+    // Reminder
+    @State private var hasReminder: Bool = false
+    @State private var reminderTime: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
 
-    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date) -> Void) {
+    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
         self.onCreateProject = onCreateProject
-        self.onSave = onSave
+        self.onSave = onSaveWithReminder
         _selectedProjectId = State(initialValue: preSelectedProjectId)
         _projectList = State(initialValue: projects)
     }
+
+    // No additional initializers
 
     var body: some View {
         NavigationStack {
@@ -129,6 +134,25 @@ struct AddTaskView: View {
                                     dueDate = TaskItem.defaultDueDate(new)
                                     showCustomDatePicker = false
                                 }
+                        }
+                    }
+
+                    // Reminder
+                    Section {
+                        HStack {
+                            Toggle(isOn: $hasReminder) {
+                                Text("Reminder")
+                                    .font(.headline)
+                            }
+                            .onChange(of: hasReminder) { newValue in
+                                if newValue {
+                                    NotificationManager.shared.requestAuthorizationIfNeeded()
+                                }
+                            }
+                        }
+                        if hasReminder {
+                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
                         }
                     }
 
@@ -321,7 +345,8 @@ struct AddTaskView: View {
 
     private func save() {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
-        onSave(title, project, difficulty, resistance, estimated, dueDate)
+        let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
+        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
         dismiss()
     }
 
@@ -370,4 +395,14 @@ private func nextWeekMonday(from date: Date = Date()) -> Date {
 
 private func nextDays(_ days: Int, from date: Date = Date()) -> Date {
     Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
+}
+
+private func combineDayAndTime(_ day: Date, _ time: Date) -> Date {
+    let cal = Calendar.current
+    let d = TaskItem.defaultDueDate(day)
+    let hm = cal.dateComponents([.hour, .minute], from: time)
+    var comps = cal.dateComponents([.year, .month, .day], from: d)
+    comps.hour = hm.hour
+    comps.minute = hm.minute
+    return cal.date(from: comps) ?? day
 }

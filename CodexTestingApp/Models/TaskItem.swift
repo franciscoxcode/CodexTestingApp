@@ -14,6 +14,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var resistance: TaskResistance
     var estimatedTime: TaskEstimatedTime
     var dueDate: Date
+    // Optional reminder datetime for local notification
+    var reminderAt: Date? = nil
 
     init(
         id: UUID = UUID(),
@@ -23,7 +25,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
         difficulty: TaskDifficulty = .easy,
         resistance: TaskResistance = .low,
         estimatedTime: TaskEstimatedTime = .short,
-        dueDate: Date = TaskItem.defaultDueDate()
+        dueDate: Date = TaskItem.defaultDueDate(),
+        reminderAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -34,6 +37,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         self.resistance = resistance
         self.estimatedTime = estimatedTime
         self.dueDate = dueDate
+        self.reminderAt = reminderAt
     }
 
     static func defaultDueDate(_ date: Date = Date()) -> Date {

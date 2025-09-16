@@ -57,54 +57,24 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 6) {
-                // Row 1: top-right plus button
-                HStack {
-                    Spacer()
-                    #if DEBUG
-                    #if targetEnvironment(simulator)
-                    Button {
+            mainContent
+        }
+    }
+
+    // Extract main content to reduce generic depth
+    private var mainContent: some View {
+        VStack(spacing: 6) {
+                TopBarButtons(
+                    onReset: {
                         viewModel.resetAndSeedSampleData()
                         userPoints = 0
                         UserDefaults.standard.set(0, forKey: "userPoints")
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.headline)
-                    }
-                    .accessibilityLabel("Reset Sample Data")
-                    .padding(.trailing, 8)
-                    #endif
-                    #endif
-                    Button {
-                        isPresentingManageProjects = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.headline)
-                    }
-                    .accessibilityLabel("Manage Projects")
-                    .padding(.trailing, 8)
-                    Button {
-                        isPresentingAdd = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.headline)
-                    }
-                    .accessibilityLabel("Add Task")
-                }
-                .padding(.horizontal, 8)
-                
+                    },
+                    onManage: { isPresentingManageProjects = true },
+                    onAdd: { isPresentingAdd = true }
+                )
 
-                // Row 2: title on left, points on right
-                HStack(alignment: .center) {
-                    Text("NoteBites")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    PointsBadge(points: userPoints, onTap: { showingCompletedSheet = true })
-                }
-                .padding(.top, 21)
-                .padding(.bottom, 13)
-                .padding(.horizontal, 8)
+                TitleRow(points: userPoints) { showingCompletedSheet = true }
 
                 // Row 3: projects bar
                 StoriesBar(projects: viewModel.projects, hasInbox: hasInbox, selectedFilter: $selectedFilter, onNew: {
@@ -149,27 +119,8 @@ struct ContentView: View {
             }
             // Removed full-screen sheet for edit project; using overlay below
             .padding()
-            .sheet(isPresented: $isPresentingAdd) {
-                let preselectedId: ProjectItem.ID? = {
-                    if case .project(let id) = selectedFilter { return id }
-                    return nil
-                }()
-                AddTaskView(
-                    projects: viewModel.projects,
-                    preSelectedProjectId: preselectedId,
-                    onCreateProject: { name, emoji in
-                        viewModel.addProject(name: name, emoji: emoji)
-                    },
-                    onSave: { title, project, difficulty, resistance, estimated, dueDate in
-                        viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate)
-                    }
-                )
-            }
-            .sheet(isPresented: $isPresentingManageProjects) {
-                ManageProjectsView(projects: viewModel.projects) { ids in
-                    viewModel.applyProjectOrder(idsInOrder: ids)
-                }
-            }
+            .sheet(isPresented: $isPresentingAdd) { addTaskSheet }
+            .sheet(isPresented: $isPresentingManageProjects) { manageProjectsSheet }
             .onAppear {
                 // Load persisted points
                 userPoints = UserDefaults.standard.integer(forKey: "userPoints")
@@ -215,9 +166,7 @@ struct ContentView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(isPresented: $showingCompletedSheet) {
-                completedSheet
-            }
+            .fullScreenCover(isPresented: $showingCompletedSheet) { completedSheet }
             .confirmationDialog(
                 pendingMoveTask.map { "Move ‘\($0.title)’ to…" } ?? "Move to date",
                 isPresented: .init(get: { pendingMoveTask != nil }, set: { if !$0 { pendingMoveTask = nil } })
@@ -253,12 +202,9 @@ struct ContentView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingMoveTask = nil }
             }
-            .sheet(isPresented: .init(get: { pendingRescheduleTask != nil }, set: { if !$0 { pendingRescheduleTask = nil } })) {
-                rescheduleSheet
-            }
+            .sheet(isPresented: .init(get: { pendingRescheduleTask != nil }, set: { if !$0 { pendingRescheduleTask = nil } })) { rescheduleSheet }
         }
     }
-}
 
 #Preview {
     ContentView()
@@ -286,6 +232,53 @@ private func upcomingSaturday(from date: Date = Date()) -> Date {
 
 // MARK: - ContentView helpers extracted to reduce type-check complexity
 extension ContentView {
+    // Small subviews to simplify type inference in body
+    private struct TopBarButtons: View {
+        var onReset: () -> Void
+        var onManage: () -> Void
+        var onAdd: () -> Void
+        var body: some View {
+            HStack {
+                Spacer()
+                #if DEBUG
+                #if targetEnvironment(simulator)
+                Button(action: onReset) {
+                    Image(systemName: "arrow.counterclockwise").font(.headline)
+                }
+                .accessibilityLabel("Reset Sample Data")
+                .padding(.trailing, 8)
+                #endif
+                #endif
+                Button(action: onManage) {
+                    Image(systemName: "line.3.horizontal").font(.headline)
+                }
+                .accessibilityLabel("Manage Projects")
+                .padding(.trailing, 8)
+                Button(action: onAdd) {
+                    Image(systemName: "plus").font(.headline)
+                }
+                .accessibilityLabel("Add Task")
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+
+    private struct TitleRow: View {
+        let points: Int
+        var onPointsTap: () -> Void
+        var body: some View {
+            HStack(alignment: .center) {
+                Text("NoteBites")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Spacer()
+                PointsBadge(points: points, onTap: onPointsTap)
+            }
+            .padding(.top, 21)
+            .padding(.bottom, 13)
+            .padding(.horizontal, 8)
+        }
+    }
     private var projectColorSwatches: [Color] {
         [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray]
     }
@@ -345,32 +338,41 @@ extension ContentView {
         }
     }
 
-    @ViewBuilder
-    private var contentList: some View {
+    // Type-erased sheets to reduce type-checking complexity in body
+    private var addTaskSheet: some View {
+        let preselectedId: ProjectItem.ID? = {
+            if case .project(let id) = selectedFilter { return id }
+            return nil
+        }()
+        return AddTaskView(
+            projects: viewModel.projects,
+            preSelectedProjectId: preselectedId,
+            onCreateProject: { name, emoji in
+                viewModel.addProject(name: name, emoji: emoji)
+            },
+            onSaveWithReminder: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?) in
+                viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt)
+            }
+        )
+    }
+
+    private var manageProjectsSheet: some View {
+        ManageProjectsView(projects: viewModel.projects) { ids in
+            viewModel.applyProjectOrder(idsInOrder: ids)
+        }
+    }
+
+    private var contentList: AnyView {
         if selectedFilter == .none {
             if viewModel.tasks.isEmpty {
-                ContentUnavailableView("No tasks yet", systemImage: "checklist", description: Text("Tap + to add your first task."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                AllTaskSectionsView(
-                    projects: viewModel.projects,
-                    tasks: filteredTasks,
-                    onLongPress: { _ in },
-                    onProjectTap: { project in selectedFilter = .project(project.id) },
-                    onToggle: { task in handleToggle(task) },
-                    onEdit: { task in editingTask = task },
-                    onDelete: { task in pendingDeleteTask = task },
-                    onMoveMenu: { task in pendingMoveTask = task }
+                return AnyView(
+                    ContentUnavailableView("No tasks yet", systemImage: "checklist", description: Text("Tap + to add your first task."))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 )
-            }
-        } else {
-            if filteredTasks.isEmpty {
-                ContentUnavailableView("No tasks yet", systemImage: "checklist", description: Text("Tap + to add your first task."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                switch (selectedFilter, dateScope) {
-                case (.project, .anytime):
-                    TasksByDueDateView(
+                return AnyView(
+                    AllTaskSectionsView(
+                        projects: viewModel.projects,
                         tasks: filteredTasks,
                         onLongPress: { _ in },
                         onProjectTap: { project in selectedFilter = .project(project.id) },
@@ -379,17 +381,41 @@ extension ContentView {
                         onDelete: { task in pendingDeleteTask = task },
                         onMoveMenu: { task in pendingMoveTask = task }
                     )
-                    .id(timeAnchor) // force regrouping headers on day change
+                )
+            }
+        } else {
+            if filteredTasks.isEmpty {
+                return AnyView(
+                    ContentUnavailableView("No tasks yet", systemImage: "checklist", description: Text("Tap + to add your first task."))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                )
+            } else {
+                switch (selectedFilter, dateScope) {
+                case (.project, .anytime):
+                    return AnyView(
+                        TasksByDueDateView(
+                            tasks: filteredTasks,
+                            onLongPress: { _ in },
+                            onProjectTap: { project in selectedFilter = .project(project.id) },
+                            onToggle: { task in handleToggle(task) },
+                            onEdit: { task in editingTask = task },
+                            onDelete: { task in pendingDeleteTask = task },
+                            onMoveMenu: { task in pendingMoveTask = task }
+                        )
+                        .id(timeAnchor) // force regrouping headers on day change
+                    )
                 default:
-                    TaskFlatListView(
-                        title: headerTitle,
-                        tasks: filteredTasks,
-                        onLongPress: { _ in },
-                        onProjectTap: { project in selectedFilter = .project(project.id) },
-                        onToggle: { task in handleToggle(task) },
-                        onEdit: { task in editingTask = task },
-                        onDelete: { task in pendingDeleteTask = task },
-                        onMoveMenu: { task in pendingMoveTask = task }
+                    return AnyView(
+                        TaskFlatListView(
+                            title: headerTitle,
+                            tasks: filteredTasks,
+                            onLongPress: { _ in },
+                            onProjectTap: { project in selectedFilter = .project(project.id) },
+                            onToggle: { task in handleToggle(task) },
+                            onEdit: { task in editingTask = task },
+                            onDelete: { task in pendingDeleteTask = task },
+                            onMoveMenu: { task in pendingMoveTask = task }
+                        )
                     )
                 }
             }
@@ -404,7 +430,7 @@ extension ContentView {
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
-            onSave: { title, project, difficulty, resistance, estimated, dueDate in
+            onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
                 viewModel.updateTask(
                     id: task.id,
                     title: title,
@@ -412,7 +438,8 @@ extension ContentView {
                     difficulty: difficulty,
                     resistance: resistance,
                     estimatedTime: estimated,
-                    dueDate: dueDate
+                    dueDate: dueDate,
+                    reminderAt: reminderAt
                 )
             },
             onDelete: {
