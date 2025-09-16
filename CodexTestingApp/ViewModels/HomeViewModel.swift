@@ -54,9 +54,12 @@ final class HomeViewModel: ObservableObject {
         let work = addProject(name: "Work", emoji: "🚀")
         let personal = addProject(name: "Personal", emoji: "🏡")
         let study = addProject(name: "Study", emoji: "📚")
+        // New: Weekend-only project (no tasks today/tomorrow)
+        let weekendProject = addProject(name: "Weekend", emoji: "🎉")
 
         let today = TaskItem.defaultDueDate()
         let tomorrow = TaskItem.defaultDueDate(Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date())
+        let saturday = TaskItem.defaultDueDate(upcomingSaturday())
 
         let difficulties: [TaskDifficulty] = [.easy, .medium, .hard]
         let resistances: [TaskResistance] = [.low, .medium, .high]
@@ -82,5 +85,22 @@ final class HomeViewModel: ObservableObject {
             let date = (i % 2 == 0) ? today : tomorrow
             addTask(title: title, project: project, difficulty: diff, resistance: res, estimatedTime: time, dueDate: date)
         }
+
+        // Add 3 weekend tasks for the weekend-only project
+        addTask(title: "Plan weekend picnic", project: weekendProject, dueDate: saturday)
+        addTask(title: "Hike the trail", project: weekendProject, dueDate: saturday)
+        addTask(title: "Movie night prep", project: weekendProject, dueDate: saturday)
     }
+}
+
+// MARK: - Date helpers for seeding
+private func upcomingSaturday(from date: Date = Date()) -> Date {
+    let sat = 7
+    var cal = Calendar.current
+    cal.firstWeekday = 1
+    let current = cal.component(.weekday, from: date)
+    if current == sat { return date }
+    var diff = sat - current
+    if diff <= 0 { diff += 7 }
+    return cal.date(byAdding: .day, value: diff, to: date) ?? date
 }

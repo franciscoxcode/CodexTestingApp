@@ -3,8 +3,8 @@ import SwiftUI
 struct ProjectStoryItem: View {
     let project: ProjectItem
     let isSelected: Bool
-    var highlightColor: Color? = nil
     var dimmed: Bool = false
+    var hasActiveForScope: Bool = false
     var onTap: () -> Void
 
     var body: some View {
@@ -16,14 +16,40 @@ struct ProjectStoryItem: View {
                     Text(project.emoji)
                         .font(.system(size: 24))
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: 58, height: 58)
+                // Base subtle border inside to avoid clipping
                 .overlay(
                     Circle()
-                        .stroke(
-                            isSelected ? Color.blue : (highlightColor ?? Color.secondary.opacity(0.3)),
-                            lineWidth: isSelected ? 2 : (highlightColor != nil ? 2 : 1)
-                        )
+                        .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
                 )
+                // Gradient ring rules:
+                // - Selected (always): yellow-green ring
+                // - Not selected but has tasks for scope: blue-purple ring
+                // - Otherwise: no gradient ring
+                .overlay(
+                    Group {
+                        if isSelected {
+                            Circle()
+                                .strokeBorder(
+                                    AngularGradient(
+                                        gradient: Gradient(colors: [Color.yellow, Color.green, Color.yellow]),
+                                        center: .center
+                                    ),
+                                    lineWidth: 4
+                                )
+                        } else if hasActiveForScope {
+                            Circle()
+                                .strokeBorder(
+                                    AngularGradient(
+                                        gradient: Gradient(colors: [Color.blue, Color.purple, Color.blue]),
+                                        center: .center
+                                    ),
+                                    lineWidth: 4
+                                )
+                        }
+                    }
+                )
+                .padding(.top, 2) // ensure no top clipping even with thick stroke
 
                 Text(project.name)
                     .font(.caption)

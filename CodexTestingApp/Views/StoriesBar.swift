@@ -20,7 +20,12 @@ struct StoriesBar: View {
                     }
                 }
 
-                StoryItem(title: "All", emoji: "🗂️", isSelected: selectedFilter == ContentView.TaskFilter.none) {
+                StoryItem(
+                    title: "All",
+                    emoji: "🗂️",
+                    isSelected: selectedFilter == ContentView.TaskFilter.none,
+                    selectedRingGradient: AngularGradient(gradient: Gradient(colors: [Color.yellow, Color.green, Color.yellow]), center: .center)
+                ) {
                     selectedFilter = ContentView.TaskFilter.none
                 }
 
@@ -31,8 +36,8 @@ struct StoriesBar: View {
                     ProjectStoryItem(
                         project: project,
                         isSelected: selectedFilter == ContentView.TaskFilter.project(project.id),
-                        highlightColor: hasActive && shouldDimProjects() ? .purple : nil,
                         dimmed: dim,
+                        hasActiveForScope: hasActive,
                         onTap: {
                             selectedFilter = (selectedFilter == ContentView.TaskFilter.project(project.id)) ? ContentView.TaskFilter.none : ContentView.TaskFilter.project(project.id)
                         }
