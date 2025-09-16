@@ -52,6 +52,18 @@ struct ContentView: View {
                 // Row 1: top-right plus button
                 HStack {
                     Spacer()
+                    #if DEBUG
+                    Button {
+                        viewModel.resetAndSeedSampleData()
+                        userPoints = 0
+                        UserDefaults.standard.set(0, forKey: "userPoints")
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.headline)
+                    }
+                    .accessibilityLabel("Reset Sample Data")
+                    .padding(.trailing, 8)
+                    #endif
                     Button {
                         isPresentingAdd = true
                     } label: {

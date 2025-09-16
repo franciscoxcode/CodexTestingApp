@@ -111,45 +111,77 @@ final class HomeViewModel: ObservableObject {
     func seedSampleData() {
         guard tasks.isEmpty else { return }
 
+        // Projects
         let work = addProject(name: "Work", emoji: "🚀")
         let personal = addProject(name: "Personal", emoji: "🏡")
         let study = addProject(name: "Study", emoji: "📚")
-        // New: Weekend-only project (no tasks today/tomorrow)
-        let weekendProject = addProject(name: "Weekend", emoji: "🎉")
+        let chores = addProject(name: "Chores", emoji: "🧺")
+        let weekendFun = addProject(name: "Weekend Fun", emoji: "🎉")
+        let futureOnly = addProject(name: "Someday", emoji: "🛰") // no today/tomorrow
+        _ = addProject(name: "Empty", emoji: "🎯") // No tasks at all
 
+        // Dates
         let today = TaskItem.defaultDueDate()
         let tomorrow = TaskItem.defaultDueDate(Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date())
         let saturday = TaskItem.defaultDueDate(upcomingSaturday())
+        let next3 = TaskItem.defaultDueDate(Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date())
+        let next5 = TaskItem.defaultDueDate(Calendar.current.date(byAdding: .day, value: 5, to: Date()) ?? Date())
 
-        let difficulties: [TaskDifficulty] = [.easy, .medium, .hard]
-        let resistances: [TaskResistance] = [.low, .medium, .high]
+        // Helpers
+        let diffs: [TaskDifficulty] = [.easy, .medium, .hard]
+        let ress: [TaskResistance] = [.low, .medium, .high]
         let times: [TaskEstimatedTime] = [.short, .medium, .long]
-        let projectsCycle: [ProjectItem?] = [work, personal, study]
 
-        let titles = [
-            "Prepare sprint board", "Email client follow-up", "Write project brief",
-            "Grocery shopping", "Laundry and folding", "Clean workspace",
-            "Study SwiftUI", "Practice algorithms", "Review design patterns",
-            "Plan weekend trip", "Book dentist appointment", "Read one chapter",
-            "Refactor view model", "Fix UI glitch", "Add unit tests",
-            "Workout session", "Meditation 10 min", "Call family",
-            "Organize photos", "Backup laptop"
-        ]
-
-        for i in 0..<20 {
-            let title = titles[i]
-            let project = projectsCycle[i % projectsCycle.count]
-            let diff = difficulties[i % difficulties.count]
-            let res = resistances[i % resistances.count]
-            let time = times[i % times.count]
-            let date = (i % 2 == 0) ? today : tomorrow
-            addTask(title: title, project: project, difficulty: diff, resistance: res, estimatedTime: time, dueDate: date)
+        func add(_ title: String, _ project: ProjectItem?, _ due: Date, _ di: Int, _ ri: Int, _ ti: Int) {
+            addTask(title: title, project: project, difficulty: diffs[di % diffs.count], resistance: ress[ri % ress.count], estimatedTime: times[ti % times.count], dueDate: due)
         }
 
-        // Add 3 weekend tasks for the weekend-only project
-        addTask(title: "Plan weekend picnic", project: weekendProject, dueDate: saturday)
-        addTask(title: "Hike the trail", project: weekendProject, dueDate: saturday)
-        addTask(title: "Movie night prep", project: weekendProject, dueDate: saturday)
+        // Work: mix of today/tomorrow
+        add("Prepare sprint board", work, today, 1, 0, 2)
+        add("Write project brief", work, tomorrow, 2, 1, 1)
+        add("Review pull requests", work, today, 0, 1, 0)
+
+        // Personal: today + weekend
+        add("Grocery shopping", personal, today, 0, 0, 1)
+        add("Book dentist", personal, tomorrow, 1, 2, 0)
+        add("Family brunch", personal, saturday, 0, 0, 2)
+
+        // Study: today/tomorrow mix
+        add("Study SwiftUI", study, today, 2, 1, 1)
+        add("Practice algorithms", study, tomorrow, 2, 2, 2)
+        add("Read design patterns", study, today, 1, 1, 2)
+
+        // Chores: mostly today
+        add("Laundry and folding", chores, today, 0, 1, 1)
+        add("Clean workspace", chores, today, 1, 0, 0)
+
+        // Weekend fun: only weekend
+        add("Plan picnic", weekendFun, saturday, 0, 0, 1)
+        add("Hike the trail", weekendFun, saturday, 1, 1, 2)
+        add("Movie night prep", weekendFun, saturday, 0, 0, 0)
+
+        // Future only: tasks beyond tomorrow
+        add("Refactor old module", futureOnly, next3, 2, 2, 2)
+        add("Research new API", futureOnly, next5, 1, 1, 1)
+
+        // Unassigned tasks: today/tomorrow
+        add("Meditation 10 min", nil, today, 0, 0, 0)
+        add("Backup laptop", nil, tomorrow, 1, 1, 1)
+    }
+
+    // Developer helper: clear storage and reseed diverse sample set
+    func resetAndSeedSampleData() {
+        // Clear in-memory
+        tasks.removeAll()
+        projects.removeAll()
+        // Remove persisted files
+        try? FileManager.default.removeItem(at: tasksFileURL)
+        try? FileManager.default.removeItem(at: projectsFileURL)
+        // Reseed
+        seedSampleData()
+        // Persist immediately
+        saveProjects()
+        saveTasks()
     }
 
     // MARK: - Persistence
