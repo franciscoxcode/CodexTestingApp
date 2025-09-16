@@ -6,6 +6,7 @@ struct TaskRow: View {
     var onToggle: ((TaskItem) -> Void)? = nil
     var onEdit: ((TaskItem) -> Void)? = nil
     var onDelete: ((TaskItem) -> Void)? = nil
+    var onMoveMenu: ((TaskItem) -> Void)? = nil
     var showCompletedStyle: Bool = true
     @State private var showDeleteConfirm = false
 
@@ -35,6 +36,14 @@ struct TaskRow: View {
             }
         }
         .listRowSeparator(.hidden)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                onMoveMenu?(task)
+            } label: {
+                Label("Move to date", systemImage: "calendar.badge.clock")
+            }
+            .tint(.yellow)
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             // Full swipe triggers the first action (Delete)
             Button {
@@ -54,3 +63,5 @@ struct TaskRow: View {
         }
     }
 }
+
+// No local date helpers needed for single move menu action

@@ -103,6 +103,11 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    func setTaskDueDate(id: UUID, dueDate: Date) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].dueDate = TaskItem.defaultDueDate(dueDate)
+    }
+
     func deleteTask(id: UUID) {
         tasks.removeAll { $0.id == id }
     }

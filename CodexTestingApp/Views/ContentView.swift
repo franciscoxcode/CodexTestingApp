@@ -15,6 +15,9 @@ struct ContentView: View {
     @State private var userPoints: Int = 0
     @State private var showingCompletedSheet = false
     @State private var pendingDeleteTask: TaskItem? = nil
+    @State private var pendingRescheduleTask: TaskItem? = nil
+    @State private var pendingMoveTask: TaskItem? = nil
+    @State private var rescheduleDate: Date = TaskItem.defaultDueDate()
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -174,6 +177,44 @@ struct ContentView: View {
             .fullScreenCover(isPresented: $showingCompletedSheet) {
                 completedSheet
             }
+            .confirmationDialog(
+                pendingMoveTask.map { "Move ‘\($0.title)’ to…" } ?? "Move to date",
+                isPresented: .init(get: { pendingMoveTask != nil }, set: { if !$0 { pendingMoveTask = nil } })
+            ) {
+                if let t = pendingMoveTask {
+                    let due = TaskItem.defaultDueDate(t.dueDate)
+                    let today = TaskItem.defaultDueDate()
+                    let tomorrow = TaskItem.defaultDueDate(nextDays(1))
+                    let weekend = TaskItem.defaultDueDate(upcomingSaturday())
+                    if due != today {
+                        Button("Today") {
+                            viewModel.setTaskDueDate(id: t.id, dueDate: today)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    if due != tomorrow {
+                        Button("Tomorrow") {
+                            viewModel.setTaskDueDate(id: t.id, dueDate: tomorrow)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    if due != weekend {
+                        Button("Weekend") {
+                            viewModel.setTaskDueDate(id: t.id, dueDate: weekend)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    Button("Pick date") {
+                        pendingRescheduleTask = t
+                        rescheduleDate = t.dueDate
+                        pendingMoveTask = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingMoveTask = nil }
+            }
+            .sheet(isPresented: .init(get: { pendingRescheduleTask != nil }, set: { if !$0 { pendingRescheduleTask = nil } })) {
+                rescheduleSheet
+            }
         }
     }
 }
@@ -276,7 +317,8 @@ extension ContentView {
                     onProjectTap: { project in selectedFilter = .project(project.id) },
                     onToggle: { task in handleToggle(task) },
                     onEdit: { task in editingTask = task },
-                    onDelete: { task in pendingDeleteTask = task }
+                    onDelete: { task in pendingDeleteTask = task },
+                    onMoveMenu: { task in pendingMoveTask = task }
                 )
             }
         } else {
@@ -292,7 +334,8 @@ extension ContentView {
                         onProjectTap: { project in selectedFilter = .project(project.id) },
                         onToggle: { task in handleToggle(task) },
                         onEdit: { task in editingTask = task },
-                        onDelete: { task in pendingDeleteTask = task }
+                        onDelete: { task in pendingDeleteTask = task },
+                        onMoveMenu: { task in pendingMoveTask = task }
                     )
                 default:
                     TaskFlatListView(
@@ -302,7 +345,8 @@ extension ContentView {
                         onProjectTap: { project in selectedFilter = .project(project.id) },
                         onToggle: { task in handleToggle(task) },
                         onEdit: { task in editingTask = task },
-                        onDelete: { task in pendingDeleteTask = task }
+                        onDelete: { task in pendingDeleteTask = task },
+                        onMoveMenu: { task in pendingMoveTask = task }
                     )
                 }
             }
@@ -607,6 +651,38 @@ extension ContentView {
             onUncomplete: { task in handleToggle(task) },
             onClose: { showingCompletedSheet = false }
         )
+    }
+
+    // Reschedule date picker sheet
+    @ViewBuilder
+    private var rescheduleSheet: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button("Cancel") { pendingRescheduleTask = nil }
+                Spacer()
+                Text("Pick Date").font(.headline)
+                Spacer()
+                Button("Save") {
+                    if let t = pendingRescheduleTask {
+                        viewModel.setTaskDueDate(id: t.id, dueDate: rescheduleDate)
+                    }
+                    pendingRescheduleTask = nil
+                }
+            }
+            .padding(.horizontal)
+
+            DatePicker("", selection: $rescheduleDate, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .frame(height: 332)
+                .clipped()
+                .padding(.horizontal)
+                .animation(.none, value: rescheduleDate)
+        }
+        .padding(.vertical, 8)
+        .presentationDetents([.height(420)])
+        .presentationDragIndicator(.visible)
     }
 }
 

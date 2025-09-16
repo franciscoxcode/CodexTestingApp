@@ -8,6 +8,7 @@ struct TaskFlatListView: View {
     var onToggle: (TaskItem) -> Void
     var onEdit: (TaskItem) -> Void = { _ in }
     var onDelete: (TaskItem) -> Void = { _ in }
+    var onMoveMenu: (TaskItem) -> Void = { _ in }
 
     var body: some View {
         List {
@@ -18,7 +19,8 @@ struct TaskFlatListView: View {
                         onProjectTap: { project in onProjectTap(project) },
                         onToggle: { _ in onToggle(task) },
                         onEdit: { _ in onEdit(task) },
-                        onDelete: { _ in onDelete(task) }
+                        onDelete: { _ in onDelete(task) },
+                        onMoveMenu: { _ in onMoveMenu(task) }
                     )
                     .contentShape(Rectangle())
                 }
