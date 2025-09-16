@@ -509,7 +509,10 @@ extension ContentView {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(radius: 20)
                 .offset(y: -140)
+                // Prevent the overlay from being pushed by the keyboard
+                .ignoresSafeArea(.keyboard)
             }
+            .ignoresSafeArea(.keyboard) // keep overlay fixed when keyboard appears
         }
     }
 
@@ -607,7 +610,9 @@ extension ContentView {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(radius: 20)
                 .offset(y: -140)
+                .ignoresSafeArea(.keyboard)
             }
+            .ignoresSafeArea(.keyboard)
         }
     }
 

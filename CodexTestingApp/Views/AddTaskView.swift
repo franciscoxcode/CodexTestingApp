@@ -209,87 +209,90 @@ struct AddTaskView: View {
                 }
                 // Popup centered overlay
                 if showingAddProject {
-                    Color.black.opacity(0.25)
-                        .ignoresSafeArea()
+                    ZStack {
+                        Color.black.opacity(0.25)
+                            .ignoresSafeArea()
 
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("New Project").font(.headline)
-                            Spacer()
-                            Button {
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button { showingEmojiPicker = true } label: {
-                                ZStack {
-                                    Circle().fill(newProjectColor ?? Color.clear)
-                                    Circle().fill(.ultraThinMaterial)
-                                    Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
-                                        .font(.system(size: 24))
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("New Project").font(.headline)
+                                Spacer()
+                                Button {
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                                 }
-                                .frame(width: 44, height: 44)
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
 
-                            TextField("Project name", text: $newProjectName)
-                                .textInputAutocapitalization(.words)
-                        }
-
-                        // Color palette (creation preview only, horizontal scroll)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
-                                    let color = pair.element
-                                    let isSelected = (newProjectColor?.description == color.description)
-                                    Button {
-                                        if isSelected { newProjectColor = nil } else { newProjectColor = color }
-                                    } label: {
-                                        Circle()
-                                            .fill(color)
-                                            .frame(width: 22, height: 22)
-                                            .overlay(
-                                                Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
-                                            )
+                            HStack(spacing: 12) {
+                                Button { showingEmojiPicker = true } label: {
+                                    ZStack {
+                                        Circle().fill(newProjectColor ?? Color.clear)
+                                        Circle().fill(.ultraThinMaterial)
+                                        Text(newProjectEmoji.isEmpty ? "✨" : newProjectEmoji)
+                                            .font(.system(size: 24))
                                     }
-                                    .buttonStyle(.plain)
+                                    .frame(width: 44, height: 44)
                                 }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                                .buttonStyle(.plain)
 
-                        HStack {
-                            Spacer()
-                            Button("Cancel") {
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                                newProjectColor = nil
+                                TextField("Project name", text: $newProjectName)
+                                    .textInputAutocapitalization(.words)
                             }
-                            Button("Create") {
-                                let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
-                                projectList.append(created)
-                                selectedProjectId = created.id
-                                showingAddProject = false
-                                newProjectName = ""
-                                newProjectEmoji = ""
-                                newProjectColor = nil
+
+                            // Color palette (creation preview only, horizontal scroll)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(Array(projectColorSwatches.enumerated()), id: \.offset) { pair in
+                                        let color = pair.element
+                                        let isSelected = (newProjectColor?.description == color.description)
+                                        Button {
+                                            if isSelected { newProjectColor = nil } else { newProjectColor = color }
+                                        } label: {
+                                            Circle()
+                                                .fill(color)
+                                                .frame(width: 22, height: 22)
+                                                .overlay(
+                                                    Circle().strokeBorder(isSelected ? Color.primary : Color.clear, lineWidth: 2)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .disabled(!canCreateProject)
+
+                            HStack {
+                                Spacer()
+                                Button("Cancel") {
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
+                                    newProjectColor = nil
+                                }
+                                Button("Create") {
+                                    let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
+                                    projectList.append(created)
+                                    selectedProjectId = created.id
+                                    showingAddProject = false
+                                    newProjectName = ""
+                                    newProjectEmoji = ""
+                                    newProjectColor = nil
+                                }
+                                .disabled(!canCreateProject)
+                            }
                         }
+                        .padding(16)
+                        .frame(maxWidth: 360)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(radius: 20)
+                        .offset(y: -140)
                     }
-                    .padding(16)
-                    .frame(maxWidth: 360)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(radius: 20)
-                    .offset(y: -140)
+                    .ignoresSafeArea(.keyboard) // keep overlay fixed when keyboard appears
                 }
             }
             .navigationTitle("New Task")
