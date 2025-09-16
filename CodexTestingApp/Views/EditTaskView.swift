@@ -6,7 +6,7 @@ struct EditTaskView: View {
     // Inputs
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
-    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
+    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void
     var onDelete: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +26,14 @@ struct EditTaskView: View {
     // Reminder
     @State private var hasReminder: Bool
     @State private var reminderTime: Date
+    // Repeat (Phase 2 UI)
+    @State private var repeatEnabled: Bool
+    @State private var repeatInterval: Int
+    @State private var repeatUnit: RecurrenceUnit
+    @State private var repeatBasis: RecurrenceBasis
+    @State private var repeatScope: RecurrenceScope
+    @State private var repeatCountLimitEnabled: Bool
+    @State private var repeatCountLimit: Int
 
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
@@ -39,7 +47,7 @@ struct EditTaskView: View {
     @State private var showEstimatedInfo = false
     @State private var showDueInfo = false
 
-    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void, onDelete: (() -> Void)? = nil) {
+    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void, onDelete: (() -> Void)? = nil) {
         self.task = task
         self.projects = projects
         self.onCreateProject = onCreateProject
@@ -64,6 +72,24 @@ struct EditTaskView: View {
             _hasReminder = State(initialValue: false)
             _reminderTime = State(initialValue: Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
         }
+
+        if let r = task.recurrence {
+            _repeatEnabled = State(initialValue: true)
+            _repeatInterval = State(initialValue: r.interval)
+            _repeatUnit = State(initialValue: r.unit)
+            _repeatBasis = State(initialValue: r.basis)
+            _repeatScope = State(initialValue: r.scope)
+            _repeatCountLimitEnabled = State(initialValue: r.countLimit != nil)
+            _repeatCountLimit = State(initialValue: r.countLimit ?? 5)
+        } else {
+            _repeatEnabled = State(initialValue: false)
+            _repeatInterval = State(initialValue: 2)
+            _repeatUnit = State(initialValue: .days)
+            _repeatBasis = State(initialValue: .scheduled)
+            _repeatScope = State(initialValue: .allDays)
+            _repeatCountLimitEnabled = State(initialValue: false)
+            _repeatCountLimit = State(initialValue: 5)
+        }
     }
 
     private func shortDateLabel(_ date: Date) -> String {
@@ -87,22 +113,7 @@ struct EditTaskView: View {
                             .submitLabel(.done)
                     }
 
-                    // Reminder
-                    Section {
-                        HStack {
-                            Toggle(isOn: $hasReminder) {
-                                Text("Reminder")
-                                    .font(.headline)
-                            }
-                            .onChange(of: hasReminder) { newValue in
-                                if newValue { NotificationManager.shared.requestAuthorizationIfNeeded() }
-                            }
-                        }
-                        if hasReminder {
-                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
-                                .datePickerStyle(.compact)
-                        }
-                    }
+                    
 
                     Section(header: Text("Project")) {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -182,6 +193,67 @@ struct EditTaskView: View {
                                     dueDate = TaskItem.defaultDueDate(new)
                                     showCustomDatePicker = false
                                 }
+                        }
+                    }
+
+                    // Repeat (preview-only for Phase 2) -- already inserted below Due Date
+
+                    // Reminder (moved after Repeat and main attributes)
+                    Section {
+                        HStack {
+                            Toggle(isOn: $hasReminder) {
+                                Text("Reminder")
+                                    .font(.headline)
+                            }
+                            .onChange(of: hasReminder) { newValue in
+                                if newValue { NotificationManager.shared.requestAuthorizationIfNeeded() }
+                            }
+                        }
+                        if hasReminder {
+                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
+                        }
+                    }
+                    // Repeat (preview-only for Phase 2)
+                    Section {
+                        Toggle("Repeat", isOn: $repeatEnabled)
+                        if repeatEnabled {
+                            HStack {
+                                Stepper(value: $repeatInterval, in: 1...999) {
+                                    Text("Every \(repeatInterval)")
+                                }
+                                Picker("Unit", selection: $repeatUnit) {
+                                    Text("min").tag(RecurrenceUnit.minutes)
+                                    Text("hr").tag(RecurrenceUnit.hours)
+                                    Text("days").tag(RecurrenceUnit.days)
+                                    Text("weeks").tag(RecurrenceUnit.weeks)
+                                    Text("months").tag(RecurrenceUnit.months)
+                                    Text("years").tag(RecurrenceUnit.years)
+                                }
+                                .pickerStyle(.menu)
+                            }
+                            Picker("From", selection: $repeatBasis) {
+                                Text("Scheduled").tag(RecurrenceBasis.scheduled)
+                                Text("Completion").tag(RecurrenceBasis.completion)
+                            }
+                            .pickerStyle(.segmented)
+                            Picker("Scope", selection: $repeatScope) {
+                                Text("All days").tag(RecurrenceScope.allDays)
+                                Text("Weekdays").tag(RecurrenceScope.weekdaysOnly)
+                                Text("Weekends").tag(RecurrenceScope.weekendsOnly)
+                            }
+                            .pickerStyle(.segmented)
+                            Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
+                            if repeatCountLimitEnabled {
+                                Stepper(value: $repeatCountLimit, in: 1...1000) {
+                                    Text("Up to \(repeatCountLimit) times")
+                                }
+                            }
+                            if let preview = repeatPreview() {
+                                Text("Next: \(dateTimeFormatter.string(from: preview))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
@@ -385,7 +457,8 @@ struct EditTaskView: View {
     private func save() {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
         let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
-        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
+        let recurrence = repeatRule()
+        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
         dismiss()
     }
 
@@ -441,6 +514,41 @@ private func combineDayAndTime(_ day: Date, _ time: Date) -> Date {
     comps.hour = hm.hour
     comps.minute = hm.minute
     return cal.date(from: comps) ?? day
+}
+
+private func dateTimeFormatterFactory_Edit() -> DateFormatter {
+    let df = DateFormatter()
+    df.dateStyle = .medium
+    df.timeStyle = .short
+    return df
+}
+
+private var dateTimeFormatter: DateFormatter { dateTimeFormatterFactory_Edit() }
+
+private extension EditTaskView {
+    func repeatRule() -> RecurrenceRule? {
+        guard repeatEnabled else { return nil }
+        let anchor = TaskItem.defaultDueDate(dueDate)
+        return RecurrenceRule(
+            unit: repeatUnit,
+            interval: repeatInterval,
+            basis: repeatBasis,
+            scope: repeatScope,
+            countLimit: repeatCountLimitEnabled ? repeatCountLimit : nil,
+            occurrencesDone: task.recurrence?.occurrencesDone ?? 0,
+            anchor: task.recurrence?.anchor ?? anchor
+        )
+    }
+
+    func repeatPreview() -> Date? {
+        guard let rule = repeatRule() else { return nil }
+        switch rule.basis {
+        case .scheduled:
+            return RecurrenceEngine.nextOccurrence(from: rule.anchor, rule: rule)
+        case .completion:
+            return RecurrenceEngine.nextOccurrence(from: Date(), rule: rule)
+        }
+    }
 }
 
 private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }

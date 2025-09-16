@@ -22,6 +22,8 @@ struct ContentView: View {
     @State private var pendingRescheduleTask: TaskItem? = nil
     @State private var pendingMoveTask: TaskItem? = nil
     @State private var rescheduleDate: Date = TaskItem.defaultDueDate()
+    // Prompt for newly generated next occurrence
+    @State private var pendingNextOccurrence: TaskItem? = nil
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -137,6 +139,13 @@ struct ContentView: View {
                 // Rollover any incomplete past-due tasks to today at app launch
                 viewModel.rolloverIncompletePastDueTasksToToday()
             }
+            // Listen for next occurrence generation to prompt Accept/Edit
+            .onReceive(viewModel.nextOccurrence) { task in
+                pendingNextOccurrence = task
+            }
+            .onChangeCompat(of: viewModel.lastGeneratedOccurrence) { _, task in
+                pendingNextOccurrence = task
+            }
             // Refresh date-scoped views when app becomes active or clock changes significantly
             .onChangeCompat(of: scenePhase) { _, phase in
                 if phase == .active {
@@ -203,6 +212,27 @@ struct ContentView: View {
                 Button("Cancel", role: .cancel) { pendingMoveTask = nil }
             }
             .sheet(isPresented: .init(get: { pendingRescheduleTask != nil }, set: { if !$0 { pendingRescheduleTask = nil } })) { rescheduleSheet }
+            // Accept/Edit prompt for next occurrence (with clear message)
+            .alert(
+                "Next Occurrence",
+                isPresented: .init(get: { pendingNextOccurrence != nil }, set: { if !$0 { pendingNextOccurrence = nil } })
+            ) {
+                if let t = pendingNextOccurrence {
+                    Button("Edit") {
+                        // Create the occurrence, then open editor
+                        viewModel.confirmNextOccurrence(t)
+                        editingTask = t
+                        pendingNextOccurrence = nil
+                    }
+                    Button("Accept") {
+                        viewModel.confirmNextOccurrence(t)
+                        pendingNextOccurrence = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingNextOccurrence = nil }
+            } message: {
+                Text(nextOccurrenceMessage)
+            }
         }
     }
 
@@ -338,6 +368,43 @@ extension ContentView {
         }
     }
 
+    private var nextOccurrenceMessage: String {
+        guard let t = pendingNextOccurrence else { return "" }
+        let day = TaskItem.defaultDueDate(t.dueDate)
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        var parts: [String] = []
+        // Date label
+        parts.append(df.string(from: day))
+        var target: Date = day
+        if let when = t.reminderAt {
+            let tf = DateFormatter()
+            tf.dateStyle = .none
+            tf.timeStyle = .short
+            parts.append("at " + tf.string(from: when))
+            target = when
+        }
+        // Relative time (e.g., in 2 hr 5 min)
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        let now = Date()
+        if target > now, let rel = formatter.string(from: now, to: target) {
+            parts.append("(in \(rel))")
+        }
+        // Occurrence progress (e.g., 9/11)
+        if let rec = t.recurrence {
+            let done = rec.occurrencesDone
+            if let limit = rec.countLimit {
+                parts.append("[\(done)/\(limit)]")
+            } else {
+                parts.append("[\(done)]")
+            }
+        }
+        return parts.joined(separator: " ")
+    }
+
     // Type-erased sheets to reduce type-checking complexity in body
     private var addTaskSheet: some View {
         let preselectedId: ProjectItem.ID? = {
@@ -350,8 +417,8 @@ extension ContentView {
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
-            onSaveWithReminder: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?) in
-                viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt)
+            onSaveFull: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?, recurrence: RecurrenceRule?) in
+                viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence)
             }
         )
     }
@@ -430,7 +497,7 @@ extension ContentView {
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
-            onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
+            onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
                 viewModel.updateTask(
                     id: task.id,
                     title: title,
@@ -439,7 +506,8 @@ extension ContentView {
                     resistance: resistance,
                     estimatedTime: estimated,
                     dueDate: dueDate,
-                    reminderAt: reminderAt
+                    reminderAt: reminderAt,
+                    recurrence: recurrence
                 )
             },
             onDelete: {

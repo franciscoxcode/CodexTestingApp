@@ -8,6 +8,7 @@ struct AddTaskView: View {
     let projects: [ProjectItem]
     var onCreateProject: (String, String) -> ProjectItem
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
+    var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void)? = nil
 
     // Selection state
     @State private var selectedProjectId: ProjectItem.ID?
@@ -34,6 +35,14 @@ struct AddTaskView: View {
     // Reminder
     @State private var hasReminder: Bool = false
     @State private var reminderTime: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+    // Repeat (Phase 2 UI)
+    @State private var repeatEnabled: Bool = false
+    @State private var repeatInterval: Int = 2
+    @State private var repeatUnit: RecurrenceUnit = .days
+    @State private var repeatBasis: RecurrenceBasis = .scheduled
+    @State private var repeatScope: RecurrenceScope = .allDays
+    @State private var repeatCountLimitEnabled: Bool = false
+    @State private var repeatCountLimit: Int = 5
 
     init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
@@ -43,7 +52,17 @@ struct AddTaskView: View {
         _projectList = State(initialValue: projects)
     }
 
-    // No additional initializers
+    // Full initializer including recurrence
+    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void) {
+        self.projects = projects
+        self.onCreateProject = onCreateProject
+        self.onSave = { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
+            onSaveFull(title, project, difficulty, resistance, estimated, dueDate, reminderAt, nil)
+        }
+        self.onSaveFull = onSaveFull
+        _selectedProjectId = State(initialValue: preSelectedProjectId)
+        _projectList = State(initialValue: projects)
+    }
 
     var body: some View {
         NavigationStack {
@@ -137,24 +156,7 @@ struct AddTaskView: View {
                         }
                     }
 
-                    // Reminder
-                    Section {
-                        HStack {
-                            Toggle(isOn: $hasReminder) {
-                                Text("Reminder")
-                                    .font(.headline)
-                            }
-                            .onChange(of: hasReminder) { newValue in
-                                if newValue {
-                                    NotificationManager.shared.requestAuthorizationIfNeeded()
-                                }
-                            }
-                        }
-                        if hasReminder {
-                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
-                                .datePickerStyle(.compact)
-                        }
-                    }
+                    
 
                     // Difficulty
                     Section {
@@ -228,6 +230,68 @@ struct AddTaskView: View {
                                 SelectableChip(title: "Medium", isSelected: estimated == .medium, color: .yellow) { estimated = .medium }
                                 SelectableChip(title: "Long", isSelected: estimated == .long, color: .yellow) { estimated = .long }
                             }
+                        }
+                    }
+
+                    // Repeat (preview-only for Phase 2)
+                    Section {
+                        Toggle("Repeat", isOn: $repeatEnabled)
+                        if repeatEnabled {
+                            HStack {
+                                Stepper(value: $repeatInterval, in: 1...999) {
+                                    Text("Every \(repeatInterval)")
+                                }
+                                Picker("Unit", selection: $repeatUnit) {
+                                    Text("min").tag(RecurrenceUnit.minutes)
+                                    Text("hr").tag(RecurrenceUnit.hours)
+                                    Text("days").tag(RecurrenceUnit.days)
+                                    Text("weeks").tag(RecurrenceUnit.weeks)
+                                    Text("months").tag(RecurrenceUnit.months)
+                                    Text("years").tag(RecurrenceUnit.years)
+                                }
+                                .pickerStyle(.menu)
+                            }
+                            Picker("From", selection: $repeatBasis) {
+                                Text("Scheduled").tag(RecurrenceBasis.scheduled)
+                                Text("Completion").tag(RecurrenceBasis.completion)
+                            }
+                            .pickerStyle(.segmented)
+                            Picker("Scope", selection: $repeatScope) {
+                                Text("All days").tag(RecurrenceScope.allDays)
+                                Text("Weekdays").tag(RecurrenceScope.weekdaysOnly)
+                                Text("Weekends").tag(RecurrenceScope.weekendsOnly)
+                            }
+                            .pickerStyle(.segmented)
+                            Toggle("Limit repetitions", isOn: $repeatCountLimitEnabled)
+                            if repeatCountLimitEnabled {
+                                Stepper(value: $repeatCountLimit, in: 1...1000) {
+                                    Text("Up to \(repeatCountLimit) times")
+                                }
+                            }
+                            if let preview = repeatPreview() {
+                                Text("Next: \(dateTimeFormatter.string(from: preview))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    // Reminder (moved after Repeat)
+                    Section {
+                        HStack {
+                            Toggle(isOn: $hasReminder) {
+                                Text("Reminder")
+                                    .font(.headline)
+                            }
+                            .onChange(of: hasReminder) { newValue in
+                                if newValue {
+                                    NotificationManager.shared.requestAuthorizationIfNeeded()
+                                }
+                            }
+                        }
+                        if hasReminder {
+                            DatePicker("Time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
                         }
                     }
                 }
@@ -346,7 +410,12 @@ struct AddTaskView: View {
     private func save() {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
         let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
-        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
+        let recurrence = repeatRule()
+        if let full = onSaveFull {
+            full(title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
+        } else {
+            onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
+        }
         dismiss()
     }
 
@@ -405,4 +474,40 @@ private func combineDayAndTime(_ day: Date, _ time: Date) -> Date {
     comps.hour = hm.hour
     comps.minute = hm.minute
     return cal.date(from: comps) ?? day
+}
+
+private func dateTimeFormatterFactory() -> DateFormatter {
+    let df = DateFormatter()
+    df.dateStyle = .medium
+    df.timeStyle = .short
+    return df
+}
+
+private var dateTimeFormatter: DateFormatter { dateTimeFormatterFactory() }
+
+private extension AddTaskView {
+    func repeatRule() -> RecurrenceRule? {
+        guard repeatEnabled else { return nil }
+        let anchor = TaskItem.defaultDueDate(dueDate)
+        return RecurrenceRule(
+            unit: repeatUnit,
+            interval: repeatInterval,
+            basis: repeatBasis,
+            scope: repeatScope,
+            countLimit: repeatCountLimitEnabled ? repeatCountLimit : nil,
+            occurrencesDone: 0,
+            anchor: anchor
+        )
+    }
+
+    func repeatPreview() -> Date? {
+        guard let rule = repeatRule() else { return nil }
+        switch rule.basis {
+        case .scheduled:
+            return RecurrenceEngine.nextOccurrence(from: rule.anchor, rule: rule)
+        case .completion:
+            // Preview from now (hypothetical completion)
+            return RecurrenceEngine.nextOccurrence(from: Date(), rule: rule)
+        }
+    }
 }

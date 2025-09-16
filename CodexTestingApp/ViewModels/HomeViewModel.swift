@@ -4,7 +4,11 @@ import Combine
 final class HomeViewModel: ObservableObject {
     @Published var tasks: [TaskItem] = []
     @Published var projects: [ProjectItem] = []
+    @Published var lastGeneratedOccurrence: TaskItem? = nil
+    private var proposedNextOccurrence: TaskItem? = nil
     private var cancellables: Set<AnyCancellable> = []
+    // Notify UI when a next occurrence is generated
+    let nextOccurrence = PassthroughSubject<TaskItem, Never>()
 
     init() {
         loadProjects()
@@ -58,12 +62,89 @@ final class HomeViewModel: ObservableObject {
         let today = TaskItem.defaultDueDate()
         var changed = false
         for i in tasks.indices {
-            if !tasks[i].isDone && TaskItem.defaultDueDate(tasks[i].dueDate) < today {
+            guard !tasks[i].isDone else { continue }
+            let due = TaskItem.defaultDueDate(tasks[i].dueDate)
+            if let rule = tasks[i].recurrence {
+                switch rule.basis {
+                case .scheduled:
+                    // Advance scheduled tasks forward to today or next valid by scope
+                    if due < today {
+                        var next = due
+                        // Prevent runaway loops by capping iterations
+                        var steps = 0
+                        while next < today && steps < 512 {
+                            next = nextOccurrenceDay(from: next, rule: rule)
+                            steps += 1
+                        }
+                        // If scope excludes today (e.g., weekendsOnly and today is weekday), move to next valid
+                        next = adjustByScopeIfNeeded(next, scope: rule.scope)
+                        if next != tasks[i].dueDate {
+                            tasks[i].dueDate = next
+                            // Align reminder to the same time (if any)
+                            if let when = tasks[i].reminderAt {
+                                tasks[i].reminderAt = alignReminderTime(toDay: next, from: when)
+                            }
+                            changed = true
+                        }
+                    }
+                case .completion:
+                    // Keep it visible today until completed
+                    if due < today {
+                        tasks[i].dueDate = today
+                        if let when = tasks[i].reminderAt {
+                            tasks[i].reminderAt = alignReminderTime(toDay: today, from: when)
+                        }
+                        changed = true
+                    }
+                }
+            } else if due < today {
                 tasks[i].dueDate = today
                 changed = true
             }
         }
         if changed { saveTasks() }
+    }
+
+    // Compute next occurrence day from a given day according to rule (>= days granularity)
+    private func nextOccurrenceDay(from baseDay: Date, rule: RecurrenceRule) -> Date {
+        RecurrenceEngine.nextOccurrence(from: baseDay, rule: rule)
+    }
+
+    private func adjustByScopeIfNeeded(_ day: Date, scope: RecurrenceScope) -> Date {
+        switch scope {
+        case .allDays: return day
+        case .weekdaysOnly:
+            let wd = Calendar.current.component(.weekday, from: day)
+            if wd == 7 || wd == 1 { // weekend
+                // move to next Monday
+                var d = day
+                while true {
+                    d = Calendar.current.date(byAdding: .day, value: 1, to: d) ?? d
+                    let w = Calendar.current.component(.weekday, from: d)
+                    if w != 7 && w != 1 { return d }
+                }
+            }
+            return day
+        case .weekendsOnly:
+            let wd = Calendar.current.component(.weekday, from: day)
+            if wd == 7 || wd == 1 { return day }
+            // move to next Saturday
+            var d = day
+            while true {
+                d = Calendar.current.date(byAdding: .day, value: 1, to: d) ?? d
+                let w = Calendar.current.component(.weekday, from: d)
+                if w == 7 { return d }
+            }
+        }
+    }
+
+    private func alignReminderTime(toDay day: Date, from timeSource: Date) -> Date {
+        let cal = Calendar.current
+        let hm = cal.dateComponents([.hour, .minute], from: timeSource)
+        var comps = cal.dateComponents([.year, .month, .day], from: TaskItem.defaultDueDate(day))
+        comps.hour = hm.hour
+        comps.minute = hm.minute
+        return cal.date(from: comps) ?? day
     }
 
     @discardableResult
@@ -121,11 +202,12 @@ final class HomeViewModel: ObservableObject {
         resistance: TaskResistance = .low,
         estimatedTime: TaskEstimatedTime = .short,
         dueDate: Date = TaskItem.defaultDueDate(),
-        reminderAt: Date? = nil
+        reminderAt: Date? = nil,
+        recurrence: RecurrenceRule? = nil
     ) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let task = TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate, reminderAt: reminderAt)
+        let task = TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence)
         tasks.append(task)
         saveTasks()
         if let _ = task.reminderAt { NotificationManager.shared.scheduleReminder(for: task) }
@@ -139,7 +221,8 @@ final class HomeViewModel: ObservableObject {
         resistance: TaskResistance,
         estimatedTime: TaskEstimatedTime,
         dueDate: Date,
-        reminderAt: Date?
+        reminderAt: Date?,
+        recurrence: RecurrenceRule?
     ) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         var current = tasks[idx]
@@ -149,6 +232,7 @@ final class HomeViewModel: ObservableObject {
         current.resistance = resistance
         current.estimatedTime = estimatedTime
         current.dueDate = dueDate
+        current.recurrence = recurrence
         current.reminderAt = reminderAt
         tasks[idx] = current
         saveTasks()
@@ -163,6 +247,32 @@ final class HomeViewModel: ObservableObject {
         if tasks[idx].isDone {
             tasks[idx].completedAt = Date()
             NotificationManager.shared.cancelReminder(for: id)
+            // Handle recurrence: generate next occurrence if applicable and within limit
+            if var rule = tasks[idx].recurrence {
+                let doneCount = rule.occurrencesDone + 1
+                if let limit = rule.countLimit, doneCount >= limit {
+                    // Do not create a next one; keep history only
+                } else {
+                    // Propose next occurrence task (do not append yet)
+                    let nextDT = nextDateTimeAfterCompletion(for: tasks[idx], rule: rule)
+                    var nextRecurrence = rule
+                    nextRecurrence.occurrencesDone = doneCount
+                    let proposal = TaskItem(
+                        title: tasks[idx].title,
+                        isDone: false,
+                        project: tasks[idx].project,
+                        difficulty: tasks[idx].difficulty,
+                        resistance: tasks[idx].resistance,
+                        estimatedTime: tasks[idx].estimatedTime,
+                        dueDate: TaskItem.defaultDueDate(nextDT),
+                        reminderAt: tasks[idx].reminderAt != nil ? nextDT : nil,
+                        recurrence: nextRecurrence
+                    )
+                    proposedNextOccurrence = proposal
+                    nextOccurrence.send(proposal)
+                    DispatchQueue.main.async { [weak self] in self?.lastGeneratedOccurrence = proposal }
+                }
+            }
         } else {
             tasks[idx].completedAt = nil
             // If task becomes incomplete and its due date is in the past, move it to Today immediately
@@ -179,6 +289,35 @@ final class HomeViewModel: ObservableObject {
             if let _ = tasks[idx].reminderAt { NotificationManager.shared.scheduleReminder(for: tasks[idx]) }
         }
         saveTasks()
+    }
+
+    // Compute next datetime for the next occurrence after completion
+    private func nextDateTimeAfterCompletion(for task: TaskItem, rule: RecurrenceRule) -> Date {
+        let now = task.completedAt ?? Date()
+        switch rule.unit {
+        case .minutes:
+            return Calendar.current.date(byAdding: .minute, value: rule.interval, to: now) ?? now
+        case .hours:
+            return Calendar.current.date(byAdding: .hour, value: rule.interval, to: now) ?? now
+        case .days, .weeks, .months, .years:
+            // For >= day, compute next day from appropriate base then align reminder time if present
+            let baseDay: Date = (rule.basis == .completion) ? TaskItem.defaultDueDate(now) : TaskItem.defaultDueDate(task.dueDate)
+            let nextDay = nextOccurrenceDay(from: baseDay, rule: rule)
+            if let when = task.reminderAt {
+                return alignReminderTime(toDay: nextDay, from: when)
+            }
+            return nextDay
+        }
+    }
+
+    // Confirm and create the proposed next occurrence (called from UI Accept/Edit)
+    func confirmNextOccurrence(_ proposed: TaskItem) {
+        // Ensure we create the latest proposed if available
+        let toCreate = proposedNextOccurrence ?? proposed
+        tasks.append(toCreate)
+        saveTasks()
+        if toCreate.reminderAt != nil { NotificationManager.shared.scheduleReminder(for: toCreate) }
+        proposedNextOccurrence = nil
     }
 
     func setTaskDueDate(id: UUID, dueDate: Date) {
