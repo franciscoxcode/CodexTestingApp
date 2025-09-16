@@ -17,7 +17,7 @@ struct CompletedTasksView: View {
                 Text("Completed Tasks")
                     .font(.title3)
                     .fontWeight(.semibold)
-                    .padding(.top, 12)
+                    .padding(.top, 8)
 
                 // Header controls: prev day, title (tap to pick), next day, Today
                 headerControls

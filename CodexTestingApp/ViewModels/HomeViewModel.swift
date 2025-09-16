@@ -156,6 +156,11 @@ final class HomeViewModel: ObservableObject {
             tasks[idx].completedAt = Date()
         } else {
             tasks[idx].completedAt = nil
+            // If task becomes incomplete and its due date is in the past, move it to Today immediately
+            let today = TaskItem.defaultDueDate()
+            if TaskItem.defaultDueDate(tasks[idx].dueDate) < today {
+                tasks[idx].dueDate = today
+            }
         }
         saveTasks()
     }
