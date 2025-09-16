@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var editingProject: ProjectItem?
     @State private var userPoints: Int = 0
     @State private var showingCompletedSheet = false
+    @State private var pendingDeleteTask: TaskItem? = nil
     enum TaskFilter: Equatable {
         case none
         case inbox
@@ -92,6 +93,24 @@ struct ContentView: View {
                 // If there are no inbox tasks anymore, clear inbox filter
                 if selectedFilter == .inbox && !tasks.contains(where: { $0.project == nil }) {
                     selectedFilter = .none
+                }
+            }
+            .alert(
+                pendingDeleteTask.map { "Delete ‘\($0.title)’?" } ?? "Delete task?",
+                isPresented: .init(get: { pendingDeleteTask != nil }, set: { if !$0 { pendingDeleteTask = nil } })
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let t = pendingDeleteTask {
+                        viewModel.deleteTask(id: t.id)
+                        pendingDeleteTask = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingDeleteTask = nil }
+            } message: {
+                if let t = pendingDeleteTask {
+                    Text("This will permanently remove ‘\(t.title)’.")
+                } else {
+                    Text("This action cannot be undone.")
                 }
             }
             .sheet(item: $editingTask) { task in
@@ -245,7 +264,7 @@ extension ContentView {
                     onProjectTap: { project in selectedFilter = .project(project.id) },
                     onToggle: { task in handleToggle(task) },
                     onEdit: { task in editingTask = task },
-                    onDelete: { task in viewModel.deleteTask(id: task.id) }
+                    onDelete: { task in pendingDeleteTask = task }
                 )
             }
         } else {
@@ -261,7 +280,7 @@ extension ContentView {
                         onProjectTap: { project in selectedFilter = .project(project.id) },
                         onToggle: { task in handleToggle(task) },
                         onEdit: { task in editingTask = task },
-                        onDelete: { task in viewModel.deleteTask(id: task.id) }
+                        onDelete: { task in pendingDeleteTask = task }
                     )
                 default:
                     TaskFlatListView(
@@ -271,7 +290,7 @@ extension ContentView {
                         onProjectTap: { project in selectedFilter = .project(project.id) },
                         onToggle: { task in handleToggle(task) },
                         onEdit: { task in editingTask = task },
-                        onDelete: { task in viewModel.deleteTask(id: task.id) }
+                        onDelete: { task in pendingDeleteTask = task }
                     )
                 }
             }

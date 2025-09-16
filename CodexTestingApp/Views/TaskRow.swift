@@ -7,6 +7,7 @@ struct TaskRow: View {
     var onEdit: ((TaskItem) -> Void)? = nil
     var onDelete: ((TaskItem) -> Void)? = nil
     var showCompletedStyle: Bool = true
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -36,7 +37,8 @@ struct TaskRow: View {
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             // Full swipe triggers the first action (Delete)
-            Button(role: .destructive) {
+            Button {
+                // Defer actual delete to parent via callback (parent shows confirm)
                 onDelete?(task)
             } label: {
                 Label("Delete", systemImage: "trash")
