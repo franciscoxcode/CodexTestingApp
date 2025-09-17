@@ -11,6 +11,8 @@ struct TaskNoteView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
+    @StateObject private var editorController = MarkdownEditorController()
+    @State private var showTokens: Bool = true
     @State private var lastSavedText: String
     @State private var lastSavedAt: Date? = nil
     @State private var isSaving: Bool = false
@@ -31,11 +33,9 @@ struct TaskNoteView: View {
             VStack(spacing: 0) {
                 // Inline editor with placeholder
                 ZStack(alignment: .topLeading) {
-                    TextEditor(text: $text)
-                        .font(.body)
+                    MarkdownTextView(text: $text, controller: editorController)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .scrollContentBackground(.hidden)
                         .background(Color(.systemBackground))
                         .ignoresSafeArea(.keyboard, edges: .bottom)
 
@@ -67,20 +67,6 @@ struct TaskNoteView: View {
                     Button("Save") { saveAndClose() }
                         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && initialMarkdown.isEmpty)
                 }
-                // Keyboard toolbar with quick actions (basic insertion for now)
-                ToolbarItemGroup(placement: .keyboard) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            Button(action: { insertPrefix("# ") }) { Text("H1") }
-                            Button(action: { insertPrefix("## ") }) { Text("H2") }
-                            Button(action: { wrapSelection(with: "**") }) { Image(systemName: "bold") }
-                            Button(action: { wrapSelection(with: "*") }) { Image(systemName: "italic") }
-                            Button(action: { wrapSelection(with: "~~") }) { Image(systemName: "strikethrough") }
-                            Button(action: { insertPrefix("- [ ] ") }) { Image(systemName: "checklist") }
-                            Button(action: { insertPrefix("- ") }) { Text("•") }
-                        }
-                    }
-                }
             }
             // Autosave timer
             .onReceive(Timer.publish(every: autoSaveIntervalSeconds, on: .main, in: .common).autoconnect()) { _ in
@@ -88,6 +74,23 @@ struct TaskNoteView: View {
             }
             .onDisappear {
                 autoSaveIfNeeded()
+            }
+            .onAppear { editorController.showTokens = showTokens }
+            .onChange(of: showTokens) { _, newValue in
+                editorController.showTokens = newValue
+                editorController.refreshPresentation()
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button(action: { showTokens.toggle() }) {
+                    Text("Markdown")
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(showTokens ? Color.blue.opacity(0.2) : Color.secondary.opacity(0.2))
+                        .clipShape(Capsule())
+                }
+                .padding(.trailing, 12)
+                .padding(.bottom, 50)
             }
         }
     }
@@ -121,14 +124,4 @@ struct TaskNoteView: View {
         dismiss()
     }
 
-    // MARK: - Simple editing helpers
-    private func insertPrefix(_ prefix: String) {
-        if text.isEmpty { text = prefix } else { text = "\(prefix)\(text)" }
-    }
-
-    private func wrapSelection(with token: String) {
-        // Without selection access in TextEditor, wrap the whole text as a basic behavior
-        if text.isEmpty { text = token + token }
-        else { text = token + text + token }
-    }
 }

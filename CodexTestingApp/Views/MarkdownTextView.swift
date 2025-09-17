@@ -1,0 +1,573 @@
+import SwiftUI
+import UIKit
+
+final class MarkdownEditorController: ObservableObject {
+    weak var textView: UITextView?
+    // Stage 3: sticky typing modes
+    enum Mode: Hashable { case bold, italic, strike }
+    private var anchors: [Mode: Int] = [:]
+    private(set) var activeModes: Set<Mode> = []
+    var showTokens: Bool = true
+
+    func wrapSelection(with token: String) {
+        guard let tv = textView else { return }
+        let range = tv.selectedRange
+        let ns = tv.text as NSString? ?? "" as NSString
+        let selected = ns.substring(with: range)
+        let newText = token + selected + token
+        tv.replaceSelectedText(with: newText)
+        // If empty selection, place caret between tokens; else after wrapped text
+        let newLocation: Int
+        if range.length == 0 {
+            newLocation = range.location + token.count
+        } else {
+            newLocation = range.location + newText.count
+        }
+        tv.selectedRange = NSRange(location: newLocation, length: 0)
+        sendEditingChanged()
+    }
+
+    func insertPrefixAtLineStart(_ prefix: String) {
+        guard let tv = textView else { return }
+        let r = tv.selectedRange
+        guard let lineRange = tv.currentLineRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let lineText = ns.substring(with: lineRange)
+        let newLine = prefix + lineText
+        tv.replaceText(in: lineRange, with: newLine)
+        // Keep cursor relative position shifted by prefix length if inside the line
+        if r.location >= lineRange.location && r.location <= lineRange.location + lineRange.length {
+            let delta = prefix.count
+            tv.selectedRange = NSRange(location: r.location + delta, length: r.length)
+        }
+        sendEditingChanged()
+    }
+
+    func insertPrefixForSelectedLines(_ prefix: String) {
+        guard let tv = textView else { return }
+        guard let block = tv.selectedLinesRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let blockText = ns.substring(with: block)
+        let lines = blockText.split(separator: "\n", omittingEmptySubsequences: false)
+        let transformed = lines.map { prefix + $0 }
+        let newBlock = transformed.joined(separator: "\n")
+        tv.replaceText(in: block, with: newBlock)
+        // Adjust selection: expand by prefix length per line before the caret
+        let selection = tv.selectedRange
+        let added = addedPrefixForSelection(prefix: prefix, originalBlock: blockText, selection: selection, blockRange: block)
+        tv.selectedRange = NSRange(location: selection.location + added, length: selection.length)
+        sendEditingChanged()
+    }
+
+    func toggleChecklist() {
+        guard let tv = textView else { return }
+        guard let block = tv.selectedLinesRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let blockText = ns.substring(with: block)
+        let lines = blockText.split(separator: "\n", omittingEmptySubsequences: false)
+        let toggled = lines.map { line -> String in
+            let s = String(line)
+            if s.hasPrefix("- [ ] ") { return String(s.dropFirst(6)) }
+            else { return "- [ ] " + s }
+        }
+        let newBlock = toggled.joined(separator: "\n")
+        tv.replaceText(in: block, with: newBlock)
+        sendEditingChanged()
+    }
+
+    func heading(_ level: Int) {
+        guard let tv = textView else { return }
+        guard let line = tv.currentLineRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let current = ns.substring(with: line)
+        let desired = String(repeating: "#", count: max(1, min(level, 6))) + " "
+        // Remove any existing leading #'s and space
+        let trimmed = current.replacingOccurrences(of: "^#{1,6} ", with: "", options: .regularExpression)
+        let newLine: String
+        if current.hasPrefix(desired) {
+            // Toggle off (remove the heading prefix)
+            newLine = trimmed
+        } else {
+            newLine = desired + trimmed
+        }
+        tv.replaceText(in: line, with: newLine)
+        // Adjust caret: move to start of content (after heading if applied)
+        let caretBase = line.location + (newLine.hasPrefix(desired) ? desired.count : 0)
+        tv.selectedRange = NSRange(location: caretBase, length: 0)
+        sendEditingChanged()
+    }
+
+    // MARK: - Sticky typing modes
+    func toggleMode(_ mode: Mode) {
+        guard let tv = textView else { return }
+        if activeModes.contains(mode) {
+            // Deactivate: wrap from anchor to caret
+            let caret = tv.selectedRange.location
+            if let start = anchors[mode], caret > start {
+                let wrapRange = NSRange(location: start, length: caret - start)
+                tv.selectedRange = wrapRange
+                wrapSelection(with: token(for: mode))
+            }
+            anchors[mode] = nil
+            activeModes.remove(mode)
+            updateTypingAttributes()
+        } else {
+            anchors[mode] = tv.selectedRange.location
+            activeModes.insert(mode)
+            updateTypingAttributes()
+        }
+    }
+
+    private func token(for mode: Mode) -> String {
+        switch mode { case .bold: return "**"; case .italic: return "*"; case .strike: return "~~" }
+    }
+
+    private func updateTypingAttributes() {
+        guard let tv = textView else { return }
+        var font = UIFont.preferredFont(forTextStyle: .body)
+        var traits: UIFontDescriptor.SymbolicTraits = []
+        if activeModes.contains(.bold) { traits.insert(.traitBold) }
+        if activeModes.contains(.italic) { traits.insert(.traitItalic) }
+        if !traits.isEmpty, let desc = font.fontDescriptor.withSymbolicTraits(traits) {
+            font = UIFont(descriptor: desc, size: font.pointSize)
+        }
+        var attrs: [NSAttributedString.Key: Any] = [.font: font]
+        if activeModes.contains(.strike) {
+            attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        }
+        tv.typingAttributes = attrs
+    }
+
+    // MARK: - Live styling (syntax highlight + sticky overlays)
+    func refreshPresentation() {
+        guard let tv = textView else { return }
+        let storage = tv.textStorage
+        applyBaseAttributes(storage)
+        applyHeadingAttributes(storage)
+        applyInlineAttributes(storage)
+        applyActiveModeVisuals()
+    }
+
+    private func applyBaseAttributes(_ storage: NSTextStorage) {
+        let whole = NSRange(location: 0, length: storage.length)
+        storage.removeAttribute(.font, range: whole)
+        storage.removeAttribute(.foregroundColor, range: whole)
+        storage.removeAttribute(.strikethroughStyle, range: whole)
+        storage.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: whole)
+        storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
+    }
+
+    private func applyHeadingAttributes(_ storage: NSTextStorage) {
+        let ns = storage.string as NSString
+        var idx = 0
+        while idx <= ns.length {
+            let lineRange = ns.lineRange(for: NSRange(location: min(idx, ns.length), length: 0))
+            if lineRange.length == 0 { break }
+            let line = ns.substring(with: lineRange)
+            if let match = try? NSRegularExpression(pattern: "^(#{1,6})\\s").firstMatch(in: line, options: [], range: NSRange(location: 0, length: (line as NSString).length)) {
+                let hashesRange = match.range(at: 1)
+                let tokenRange = NSRange(location: lineRange.location + hashesRange.location, length: hashesRange.length + 1) // include space
+                let contentRange = NSRange(location: lineRange.location + hashesRange.length + 1, length: lineRange.length - (hashesRange.length + 1))
+                // Dim tokens
+                let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
+                storage.addAttribute(.foregroundColor, value: tokenColor, range: tokenRange)
+                // Larger font for content according to level
+                let level = hashesRange.length
+                let font: UIFont
+                switch level {
+                case 1: font = UIFont.preferredFont(forTextStyle: .title2)
+                case 2: font = UIFont.preferredFont(forTextStyle: .headline)
+                case 3: font = UIFont.preferredFont(forTextStyle: .subheadline)
+                default: font = UIFont.preferredFont(forTextStyle: .body)
+                }
+                storage.addAttribute(.font, value: font, range: contentRange)
+            }
+            idx = lineRange.location + lineRange.length
+            if idx >= ns.length { break }
+        }
+    }
+
+    private func applyInlineAttributes(_ storage: NSTextStorage) {
+        let s = storage.string as NSString
+        let full = NSRange(location: 0, length: s.length)
+        func applyRegex(_ pattern: String, tokenLen: Int, applyContent: (NSRange) -> Void) {
+            if let re = try? NSRegularExpression(pattern: pattern, options: []) {
+                re.enumerateMatches(in: storage.string, options: [], range: full) { match, _, _ in
+                    guard let m = match else { return }
+                    let range = m.range
+                    if range.length < tokenLen * 2 { return }
+                    let content = NSRange(location: range.location + tokenLen, length: range.length - tokenLen * 2)
+                    // dim tokens
+                    let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
+                    storage.addAttribute(.foregroundColor, value: tokenColor, range: NSRange(location: range.location, length: tokenLen))
+                    storage.addAttribute(.foregroundColor, value: tokenColor, range: NSRange(location: range.location + range.length - tokenLen, length: tokenLen))
+                    applyContent(content)
+                }
+            }
+        }
+        // Bold: **text**
+        applyRegex(#"\*\*(.+?)\*\*"#, tokenLen: 2) { content in
+            if let desc = UIFont.preferredFont(forTextStyle: .body).fontDescriptor.withSymbolicTraits(.traitBold) {
+                let f = UIFont(descriptor: desc, size: UIFont.preferredFont(forTextStyle: .body).pointSize)
+                storage.addAttribute(.font, value: f, range: content)
+            }
+        }
+        // Strike: ~~text~~
+        applyRegex(#"~~(.+?)~~"#, tokenLen: 2) { content in
+            storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: content)
+        }
+        // Italic: single *text* (avoid **)
+        applyRegex(#"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"#, tokenLen: 1) { content in
+            if let desc = UIFont.preferredFont(forTextStyle: .body).fontDescriptor.withSymbolicTraits(.traitItalic) {
+                let f = UIFont(descriptor: desc, size: UIFont.preferredFont(forTextStyle: .body).pointSize)
+                storage.addAttribute(.font, value: f, range: content)
+            }
+        }
+        // Checklist tokens: dim '- [ ] '
+        if let re = try? NSRegularExpression(pattern: #"(?m)^- \[ (?:\]|x)\]\s"#, options: []) {
+            re.enumerateMatches(in: storage.string, options: [], range: full) { match, _, _ in
+                if let r = match?.range {
+                    let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
+                    storage.addAttribute(.foregroundColor, value: tokenColor, range: r)
+                }
+            }
+        }
+    }
+
+    func applyActiveModeVisuals() {
+        guard let tv = textView else { return }
+        let caret = tv.selectedRange.location
+        let storage = tv.textStorage
+        for mode in activeModes {
+            guard let start = anchors[mode], caret >= start else { continue }
+            let range = NSRange(location: start, length: caret - start)
+            var f = UIFont.preferredFont(forTextStyle: .body)
+            var traits: UIFontDescriptor.SymbolicTraits = []
+            if mode == .bold { traits.insert(.traitBold) }
+            if mode == .italic { traits.insert(.traitItalic) }
+            if !traits.isEmpty, let desc = f.fontDescriptor.withSymbolicTraits(traits) {
+                f = UIFont(descriptor: desc, size: f.pointSize)
+            }
+            storage.addAttribute(.font, value: f, range: range)
+            if mode == .strike {
+                storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            }
+        }
+    }
+
+    // MARK: - Toggle checkbox state by tap
+    func toggleCheckbox(atCharacter offset: Int) {
+        guard let tv = textView else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let lineRange = ns.lineRange(for: NSRange(location: min(offset, ns.length), length: 0))
+        if lineRange.length == 0 { return }
+        let line = ns.substring(with: lineRange)
+        let prefixUnchecked = "- [ ] "
+        let prefixChecked = "- [x] "
+        let newLine: String
+        if line.hasPrefix(prefixUnchecked) {
+            newLine = prefixChecked + String(line.dropFirst(prefixUnchecked.count))
+        } else if line.hasPrefix(prefixChecked) {
+            newLine = prefixUnchecked + String(line.dropFirst(prefixChecked.count))
+        } else {
+            return
+        }
+        tv.replaceText(in: lineRange, with: newLine)
+        sendEditingChanged()
+    }
+
+    // MARK: - Extra actions: quote, code, link
+    func toggleBlockQuote() {
+        guard let tv = textView else { return }
+        guard let block = tv.selectedLinesRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let blockText = ns.substring(with: block)
+        let lines = blockText.split(separator: "\n", omittingEmptySubsequences: false)
+        let toggled = lines.map { s -> String in
+            let t = String(s)
+            if t.hasPrefix("> ") { return String(t.dropFirst(2)) }
+            return "> " + t
+        }
+        let newBlock = toggled.joined(separator: "\n")
+        tv.replaceText(in: block, with: newBlock)
+        sendEditingChanged()
+    }
+
+    func wrapInlineCode() { wrapSelection(with: "`") }
+
+    func wrapLink() {
+        guard let tv = textView else { return }
+        let range = tv.selectedRange
+        let ns = tv.text as NSString? ?? "" as NSString
+        let selected = ns.substring(with: range)
+        let linkText: String
+        let linkURL: String
+        if selected.range(of: "^https?://\\S+$", options: .regularExpression) != nil {
+            linkText = selected
+            linkURL = selected
+        } else if !selected.isEmpty {
+            linkText = selected
+            linkURL = "https://"
+        } else {
+            linkText = "link"
+            linkURL = "https://"
+        }
+        let insertion = "[" + linkText + "](" + linkURL + ")"
+        tv.replaceSelectedText(with: insertion)
+        // place caret inside URL if inserted empty url
+        if linkURL == "https://" {
+            let start = range.location + linkText.count + 3 // [text](
+            tv.selectedRange = NSRange(location: start, length: linkURL.count)
+        } else {
+            tv.selectedRange = NSRange(location: range.location + insertion.count, length: 0)
+        }
+        sendEditingChanged()
+    }
+
+
+    private func addedPrefixForSelection(prefix: String, originalBlock: String, selection: NSRange, blockRange: NSRange) -> Int {
+        // Rough heuristic: add prefix length if cursor not at very start of block
+        // and there is at least one newline before selection.
+        let local = selection.location - blockRange.location
+        if local <= 0 { return 0 }
+        // Count number of lines before caret
+        let head = String(originalBlock.prefix(local))
+        let linesBefore = head.reduce(0) { $1 == "\n" ? $0 + 1 : $0 }
+        return linesBefore * prefix.count
+    }
+
+    private func sendEditingChanged() {
+        // Manually notify bound text update
+        textView?.delegate?.textViewDidChange?(textView!)
+    }
+}
+
+private extension UITextView {
+    func replaceSelectedText(with newText: String) {
+        if let range = Range(selectedRange, in: text) {
+            text.replaceSubrange(range, with: newText)
+        }
+    }
+
+    func replaceText(in nsRange: NSRange, with newText: String) {
+        if let range = Range(nsRange, in: text) {
+            text.replaceSubrange(range, with: newText)
+        }
+    }
+
+    func currentLineRange() -> NSRange? {
+        let ns = text as NSString
+        let caret = selectedRange.location
+        let start = ns.range(of: "\n", options: .backwards, range: NSRange(location: 0, length: min(caret, ns.length))).location
+        let lineStart = (start == NSNotFound) ? 0 : start + 1
+        let endSearchRange = NSRange(location: caret, length: ns.length - caret)
+        let end = ns.range(of: "\n", options: [], range: endSearchRange).location
+        let lineEnd = (end == NSNotFound) ? ns.length : end
+        return NSRange(location: lineStart, length: max(0, lineEnd - lineStart))
+    }
+
+    func selectedLinesRange() -> NSRange? {
+        let ns = text as NSString
+        let sel = selectedRange
+        let start = ns.range(of: "\n", options: .backwards, range: NSRange(location: 0, length: min(sel.location, ns.length))).location
+        let lineStart = (start == NSNotFound) ? 0 : start + 1
+        let endSearchLoc = min(sel.location + sel.length, ns.length)
+        let endSearchRange = NSRange(location: endSearchLoc, length: ns.length - endSearchLoc)
+        let end = ns.range(of: "\n", options: [], range: endSearchRange).location
+        let lineEnd = (end == NSNotFound) ? ns.length : end
+        return NSRange(location: lineStart, length: max(0, lineEnd - lineStart))
+    }
+}
+
+struct MarkdownTextView: UIViewRepresentable {
+    @Binding var text: String
+    var controller: MarkdownEditorController
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.delegate = context.coordinator
+        tv.backgroundColor = .clear
+        tv.font = .preferredFont(forTextStyle: .body)
+        tv.autocorrectionType = .yes
+        tv.autocapitalizationType = .sentences
+        tv.smartDashesType = .yes
+        tv.smartQuotesType = .yes
+        tv.isScrollEnabled = true
+        tv.isEditable = true
+        tv.isSelectable = true
+        tv.text = text
+        controller.textView = tv
+        // Attach a custom accessory bar above the keyboard
+        tv.inputAccessoryView = makeAccessoryBar()
+        // Initial presentation styling
+        controller.refreshPresentation()
+        // Tap to toggle checkbox state
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        tv.addGestureRecognizer(tap)
+        return tv
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+        if controller.textView !== uiView {
+            controller.textView = uiView
+        }
+        // Ensure accessory bar remains attached
+        if uiView.inputAccessoryView == nil {
+            uiView.inputAccessoryView = makeAccessoryBar()
+        }
+        controller.refreshPresentation()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text, controller: controller) }
+
+    private func makeAccessoryBar() -> UIView {
+        let container = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
+        // inputAccessoryView uses its frame for height
+        container.frame = CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 46)
+        container.autoresizingMask = [.flexibleWidth]
+
+        let scroll = UIScrollView()
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        container.contentView.addSubview(scroll)
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: container.contentView.leadingAnchor, constant: 8),
+            scroll.trailingAnchor.constraint(equalTo: container.contentView.trailingAnchor, constant: -8),
+            scroll.topAnchor.constraint(equalTo: container.contentView.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: container.contentView.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            stack.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor)
+        ])
+
+        func makeButton(_ title: String?, _ systemName: String?) -> UIButton {
+            var cfg = UIButton.Configuration.tinted()
+            cfg.cornerStyle = .capsule
+            cfg.background.backgroundColor = UIColor.secondarySystemFill
+            cfg.baseForegroundColor = UIColor.label
+            cfg.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)
+            cfg.imagePadding = 6
+            if let title = title { cfg.title = title }
+            if let name = systemName { cfg.image = UIImage(systemName: name) }
+            let btn = UIButton(configuration: cfg)
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            return btn
+        }perfe
+
+        let h1 = makeButton("H1", nil)
+        let h2 = makeButton("H2", nil)
+        let bold = makeButton(nil, "bold")
+        let italic = makeButton(nil, "italic")
+        let strike = makeButton(nil, "strikethrough")
+        let checklist = makeButton(nil, "checklist")
+        let bullet = makeButton("•", nil)
+        let quote = makeButton(nil, "text.quote")
+        let code = makeButton("`code`", nil)
+        let link = makeButton(nil, "link")
+
+        [h1, h2, bold, italic, strike, checklist, bullet, quote, code, link].forEach { stack.addArrangedSubview($0) }
+
+        func setSelected(_ btn: UIButton, _ on: Bool) {
+            guard var cfg = btn.configuration else { return }
+            cfg.cornerStyle = .capsule
+            cfg.background.backgroundColor = on ? UIColor.systemBlue.withAlphaComponent(0.25) : UIColor.secondarySystemFill
+            btn.configuration = cfg
+            btn.isSelected = on
+        }
+        func updateButtons(_ controller: MarkdownEditorController) {
+            let modes = controller.activeModes
+            setSelected(bold, modes.contains(.bold))
+            setSelected(italic, modes.contains(.italic))
+            setSelected(strike, modes.contains(.strike))
+        }
+        // Wire actions after all buttons exist
+        h1.addAction(UIAction { [weak controller] _ in controller?.heading(1) }, for: .primaryActionTriggered)
+        h2.addAction(UIAction { [weak controller] _ in controller?.heading(2) }, for: .primaryActionTriggered)
+        bold.addAction(UIAction { [weak controller] _ in
+            guard let c = controller, let tv = c.textView else { return }
+            if tv.selectedRange.length > 0 { c.wrapSelection(with: "**") } else { c.toggleMode(.bold) }
+            updateButtons(c)
+        }, for: .primaryActionTriggered)
+        italic.addAction(UIAction { [weak controller] _ in
+            guard let c = controller, let tv = c.textView else { return }
+            if tv.selectedRange.length > 0 { c.wrapSelection(with: "*") } else { c.toggleMode(.italic) }
+            updateButtons(c)
+        }, for: .primaryActionTriggered)
+        strike.addAction(UIAction { [weak controller] _ in
+            guard let c = controller, let tv = c.textView else { return }
+            if tv.selectedRange.length > 0 { c.wrapSelection(with: "~~") } else { c.toggleMode(.strike) }
+            updateButtons(c)
+        }, for: .primaryActionTriggered)
+        checklist.addAction(UIAction { [weak controller] _ in controller?.toggleChecklist() }, for: .primaryActionTriggered)
+        bullet.addAction(UIAction { [weak controller] _ in controller?.insertPrefixForSelectedLines("- ") }, for: .primaryActionTriggered)
+        quote.addAction(UIAction { [weak controller] _ in controller?.toggleBlockQuote() }, for: .primaryActionTriggered)
+        code.addAction(UIAction { [weak controller] _ in controller?.wrapInlineCode() }, for: .primaryActionTriggered)
+        link.addAction(UIAction { [weak controller] _ in controller?.wrapLink() }, for: .primaryActionTriggered)
+        // initial sync visual state
+        updateButtons(controller)
+        return container
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+        var text: Binding<String>
+        weak var controller: MarkdownEditorController?
+        init(text: Binding<String>, controller: MarkdownEditorController) { self.text = text; self.controller = controller }
+
+        func textViewDidChange(_ textView: UITextView) {
+            if text.wrappedValue != textView.text {
+                text.wrappedValue = textView.text
+            }
+            controller?.refreshPresentation()
+        }
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            controller?.applyActiveModeVisuals()
+        }
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard let tv = gesture.view as? UITextView else { return }
+            let pointInView = gesture.location(in: tv)
+            let container = tv.textContainer
+            let layout = tv.layoutManager
+            var point = pointInView
+            point.x -= tv.textContainerInset.left
+            point.y -= tv.textContainerInset.top
+            let glyphIndex = layout.glyphIndex(for: point, in: container)
+            let charIndex = layout.characterIndexForGlyph(at: glyphIndex)
+            controller?.toggleCheckbox(atCharacter: charIndex)
+        }
+
+        // Only capture taps that hit a checkbox line near the leading edge
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let tv = gestureRecognizer.view as? UITextView else { return false }
+            let pointInView = touch.location(in: tv)
+            var point = pointInView
+            point.x -= tv.textContainerInset.left
+            point.y -= tv.textContainerInset.top
+            let glyphIndex = tv.layoutManager.glyphIndex(for: point, in: tv.textContainer)
+            let charIndex = tv.layoutManager.characterIndexForGlyph(at: glyphIndex)
+
+            let ns = tv.text as NSString
+            let lineRange = ns.lineRange(for: NSRange(location: min(charIndex, ns.length), length: 0))
+            if lineRange.length == 0 { return false }
+            let line = ns.substring(with: lineRange)
+            let isCheckbox = line.hasPrefix("- [ ] ") || line.hasPrefix("- [x] ")
+            // Leading area threshold (~40pt from content inset)
+            let nearLeading = pointInView.x <= (tv.textContainerInset.left + 40)
+            return isCheckbox && nearLeading
+        }
+    }
+}
