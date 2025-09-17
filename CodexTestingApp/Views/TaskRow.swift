@@ -7,6 +7,7 @@ struct TaskRow: View {
     var onEdit: ((TaskItem) -> Void)? = nil
     var onDelete: ((TaskItem) -> Void)? = nil
     var onMoveMenu: ((TaskItem) -> Void)? = nil
+    var onOpenNote: ((TaskItem) -> Void)? = nil
     var showCompletedStyle: Bool = true
     // Optional trailing info (e.g., +points in Completed list)
     var trailingInfo: String? = nil
@@ -26,6 +27,7 @@ struct TaskRow: View {
             Text(task.title)
                 .strikethrough(renderAsDone, color: .secondary)
                 .foregroundStyle(renderAsDone ? .secondary : .primary)
+                .onTapGesture { onEdit?(task) }
 
             Spacer(minLength: 8)
 
@@ -61,19 +63,10 @@ struct TaskRow: View {
             .tint(.yellow)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            // Full swipe triggers the first action (Delete)
             Button {
-                // Defer actual delete to parent via callback (parent shows confirm)
-                onDelete?(task)
+                onOpenNote?(task)
             } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .tint(.red)
-
-            Button {
-                onEdit?(task)
-            } label: {
-                Label("Edit", systemImage: "pencil")
+                Label("Note", systemImage: "square.and.pencil")
             }
             .tint(.blue)
         }

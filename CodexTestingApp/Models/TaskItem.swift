@@ -18,6 +18,9 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var recurrence: RecurrenceRule? = nil
     // Optional reminder datetime for local notification
     var reminderAt: Date? = nil
+    // Optional markdown note linked to the task
+    var noteMarkdown: String? = nil
+    var noteUpdatedAt: Date? = nil
 
     init(
         id: UUID = UUID(),
@@ -29,7 +32,9 @@ struct TaskItem: Identifiable, Codable, Equatable {
         estimatedTime: TaskEstimatedTime = .short,
         dueDate: Date = TaskItem.defaultDueDate(),
         reminderAt: Date? = nil,
-        recurrence: RecurrenceRule? = nil
+        recurrence: RecurrenceRule? = nil,
+        noteMarkdown: String? = nil,
+        noteUpdatedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -42,6 +47,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
         self.dueDate = dueDate
         self.reminderAt = reminderAt
         self.recurrence = recurrence
+        self.noteMarkdown = noteMarkdown
+        self.noteUpdatedAt = noteUpdatedAt
     }
 
     static func defaultDueDate(_ date: Date = Date()) -> Date {

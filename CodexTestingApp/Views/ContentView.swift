@@ -56,6 +56,8 @@ struct ContentView: View {
     @State private var editProjectColor: Color? = nil
     // Pending hide window for recently completed tasks
     @State private var pendingHideUntil: [UUID: Date] = [:]
+    // Full-screen note editor state
+    @State private var openNoteTask: TaskItem? = nil
 
     var body: some View {
         NavigationStack {
@@ -176,6 +178,22 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
             }
             .fullScreenCover(isPresented: $showingCompletedSheet) { completedSheet }
+            .sheet(item: $openNoteTask) { task in
+                TaskNoteView(
+                    taskId: task.id,
+                    taskTitle: task.title,
+                    initialMarkdown: task.noteMarkdown ?? "",
+                    autoSaveIntervalSeconds: 3,
+                    onSave: { text in
+                        viewModel.updateTaskNote(id: task.id, noteMarkdown: text)
+                    },
+                    onAutoSave: { text in
+                        viewModel.updateTaskNote(id: task.id, noteMarkdown: text)
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             .confirmationDialog(
                 pendingMoveTask.map { "Move ‘\($0.title)’ to…" } ?? "Move to date",
                 isPresented: .init(get: { pendingMoveTask != nil }, set: { if !$0 { pendingMoveTask = nil } })
@@ -446,7 +464,8 @@ extension ContentView {
                         onToggle: { task in handleToggle(task) },
                         onEdit: { task in editingTask = task },
                         onDelete: { task in pendingDeleteTask = task },
-                        onMoveMenu: { task in pendingMoveTask = task }
+                        onMoveMenu: { task in pendingMoveTask = task },
+                        onOpenNote: { task in openNoteTask = task }
                     )
                 )
             }
@@ -467,7 +486,8 @@ extension ContentView {
                             onToggle: { task in handleToggle(task) },
                             onEdit: { task in editingTask = task },
                             onDelete: { task in pendingDeleteTask = task },
-                            onMoveMenu: { task in pendingMoveTask = task }
+                            onMoveMenu: { task in pendingMoveTask = task },
+                            onOpenNote: { task in openNoteTask = task }
                         )
                         .id(timeAnchor) // force regrouping headers on day change
                     )
@@ -481,7 +501,8 @@ extension ContentView {
                             onToggle: { task in handleToggle(task) },
                             onEdit: { task in editingTask = task },
                             onDelete: { task in pendingDeleteTask = task },
-                            onMoveMenu: { task in pendingMoveTask = task }
+                            onMoveMenu: { task in pendingMoveTask = task },
+                            onOpenNote: { task in openNoteTask = task }
                         )
                     )
                 }
@@ -791,11 +812,34 @@ extension ContentView {
     private var completedSheet: some View {
         CompletedTasksView(
             tasks: viewModel.tasks,
+            projects: viewModel.projects,
             onUncomplete: { task in handleToggle(task) },
             onClose: { showingCompletedSheet = false },
             onProjectTap: { project in
                 selectedFilter = .project(project.id)
                 showingCompletedSheet = false
+            },
+            onUpdateTask: { original, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
+                viewModel.updateTask(
+                    id: original.id,
+                    title: title,
+                    project: project,
+                    difficulty: difficulty,
+                    resistance: resistance,
+                    estimatedTime: estimated,
+                    dueDate: dueDate,
+                    reminderAt: reminderAt,
+                    recurrence: recurrence
+                )
+            },
+            onCreateProject: { name, emoji in
+                viewModel.addProject(name: name, emoji: emoji)
+            },
+            onUpdateTaskNote: { id, text in
+                viewModel.updateTaskNote(id: id, noteMarkdown: text)
+            },
+            onSetTaskDueDate: { id, dueDate in
+                viewModel.setTaskDueDate(id: id, dueDate: dueDate)
             }
         )
     }

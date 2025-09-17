@@ -9,6 +9,7 @@ struct TaskFlatListView: View {
     var onEdit: (TaskItem) -> Void = { _ in }
     var onDelete: (TaskItem) -> Void = { _ in }
     var onMoveMenu: (TaskItem) -> Void = { _ in }
+    var onOpenNote: (TaskItem) -> Void = { _ in }
 
     var body: some View {
         List {
@@ -20,9 +21,9 @@ struct TaskFlatListView: View {
                         onToggle: { _ in onToggle(task) },
                         onEdit: { _ in onEdit(task) },
                         onDelete: { _ in onDelete(task) },
-                        onMoveMenu: { _ in onMoveMenu(task) }
+                        onMoveMenu: { _ in onMoveMenu(task) },
+                        onOpenNote: { _ in onOpenNote(task) }
                     )
-                    .contentShape(Rectangle())
                 }
             }
         }

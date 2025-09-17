@@ -2,13 +2,23 @@ import SwiftUI
 
 struct CompletedTasksView: View {
     let tasks: [TaskItem]
+    let projects: [ProjectItem]
     var onUncomplete: (TaskItem) -> Void
     var onClose: () -> Void
     var onProjectTap: (ProjectItem) -> Void = { _ in }
+    var onUpdateTask: (_ original: TaskItem, _ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void
+    var onCreateProject: (String, String) -> ProjectItem
+    var onUpdateTaskNote: (_ id: UUID, _ text: String) -> Void
+    var onSetTaskDueDate: (_ id: UUID, _ dueDate: Date) -> Void
 
     // Single-day view state
     @State private var selectedDay: Date = Calendar.current.startOfDay(for: Date())
     @State private var showPicker: Bool = false
+    @State private var editingTask: TaskItem? = nil
+    @State private var openNoteTask: TaskItem? = nil
+    @State private var pendingMoveTask: TaskItem? = nil
+    @State private var pendingRescheduleTask: TaskItem? = nil
+    @State private var rescheduleDate: Date = TaskItem.defaultDueDate()
 
     var body: some View {
         NavigationStack {
@@ -31,6 +41,8 @@ struct CompletedTasksView: View {
                             task: task,
                             onProjectTap: { project in onProjectTap(project) },
                             onToggle: { _ in onUncomplete(task) },
+                            onEdit: { _ in editingTask = task },
+                            onMoveMenu: { _ in pendingMoveTask = task }, onOpenNote: { _ in openNoteTask = task },
                             showCompletedStyle: false,
                             trailingInfo: "+\(pts)",
                             showProjectName: false
@@ -64,6 +76,96 @@ struct CompletedTasksView: View {
                         .onChangeCompat(of: selectedDay) { _, new in selectedDay = normalized(new) }
                         .padding(.horizontal)
                 }
+                .presentationDetents([.height(420)])
+                .presentationDragIndicator(.visible)
+            }
+            // Present note editor above CompletedTasks
+            .sheet(item: $openNoteTask) { task in
+                TaskNoteView(
+                    taskId: task.id,
+                    taskTitle: task.title,
+                    initialMarkdown: task.noteMarkdown ?? "",
+                    autoSaveIntervalSeconds: 3,
+                    onSave: { text in onUpdateTaskNote(task.id, text) },
+                    onAutoSave: { text in onUpdateTaskNote(task.id, text) }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            // Present task editor above CompletedTasks
+            .sheet(item: $editingTask) { task in
+                EditTaskView(
+                    task: task,
+                    projects: projects,
+                    onCreateProject: { name, emoji in onCreateProject(name, emoji) },
+                    onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
+                        onUpdateTask(task, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
+                    },
+                    onDelete: nil
+                )
+            }
+            // Move menu and reschedule inside CompletedTasks
+            .confirmationDialog(
+                pendingMoveTask.map { "Move ‘\($0.title)’ to…" } ?? "Move to date",
+                isPresented: .init(get: { pendingMoveTask != nil }, set: { if !$0 { pendingMoveTask = nil } })
+            ) {
+                if let t = pendingMoveTask {
+                    let due = TaskItem.defaultDueDate(t.dueDate)
+                    let today = TaskItem.defaultDueDate()
+                    let tomorrow = TaskItem.defaultDueDate(nextDays(1))
+                    let weekend = TaskItem.defaultDueDate(upcomingSaturday())
+                    if due != today {
+                        Button("Today") {
+                            onSetTaskDueDate(t.id, today)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    if due != tomorrow {
+                        Button("Tomorrow") {
+                            onSetTaskDueDate(t.id, tomorrow)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    if due != weekend {
+                        Button("Weekend") {
+                            onSetTaskDueDate(t.id, weekend)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    Button("Pick date") {
+                        pendingRescheduleTask = t
+                        rescheduleDate = t.dueDate
+                        pendingMoveTask = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingMoveTask = nil }
+            }
+            .sheet(isPresented: .init(get: { pendingRescheduleTask != nil }, set: { if !$0 { pendingRescheduleTask = nil } })) {
+                VStack(spacing: 8) {
+                    HStack {
+                        Button("Cancel") { pendingRescheduleTask = nil }
+                        Spacer()
+                        Text("Pick Date").font(.headline)
+                        Spacer()
+                        Button("Save") {
+                            if let t = pendingRescheduleTask {
+                                onSetTaskDueDate(t.id, rescheduleDate)
+                            }
+                            pendingRescheduleTask = nil
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    DatePicker("", selection: $rescheduleDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 332)
+                        .clipped()
+                        .padding(.horizontal)
+                        .animation(.none, value: rescheduleDate)
+                }
+                .padding(.vertical, 8)
                 .presentationDetents([.height(420)])
                 .presentationDragIndicator(.visible)
             }
@@ -191,4 +293,20 @@ struct CompletedTasksView: View {
     private func addDays(_ days: Int, from date: Date) -> Date {
         Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
     }
+}
+
+// MARK: - Date helpers for move menu
+private func nextDays(_ days: Int, from date: Date = Date()) -> Date {
+    Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
+}
+
+private func upcomingSaturday(from date: Date = Date()) -> Date {
+    let sat = 7 // Saturday in Gregorian
+    var cal = Calendar.current
+    cal.firstWeekday = 1 // Sunday
+    let current = cal.component(.weekday, from: date)
+    if current == sat { return date }
+    var days = sat - current
+    if days <= 0 { days += 7 }
+    return cal.date(byAdding: .day, value: days, to: date) ?? date
 }

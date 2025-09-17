@@ -241,6 +241,15 @@ final class HomeViewModel: ObservableObject {
         if let _ = current.reminderAt, !current.isDone { NotificationManager.shared.scheduleReminder(for: current) }
     }
 
+    // Update or create the markdown note attached to a task
+    func updateTaskNote(id: UUID, noteMarkdown: String) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].noteMarkdown = noteMarkdown
+        tasks[idx].noteUpdatedAt = Date()
+        // Persist immediately; Combine sink will also save, but we want durability for autosave
+        saveTasks()
+    }
+
     func toggleTaskDone(id: UUID) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[idx].isDone.toggle()
