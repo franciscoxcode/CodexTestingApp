@@ -324,6 +324,37 @@ final class MarkdownEditorController: ObservableObject {
         sendEditingChanged()
     }
 
+    // MARK: - Ordered list toggle
+    func toggleOrderedList() {
+        guard let tv = textView else { return }
+        guard let block = tv.selectedLinesRange() else { return }
+        let ns = tv.text as NSString? ?? "" as NSString
+        let blockText = ns.substring(with: block)
+        let lines = blockText.split(separator: "\n", omittingEmptySubsequences: false)
+        let allNumbered = lines.allSatisfy { $0.firstMatch(of: /^\d+\.\s/) != nil }
+        if allNumbered {
+            // Remove numbers
+            let stripped = lines.map { line -> String in
+                let s = String(line)
+                if let m = try? NSRegularExpression(pattern: "^\\d+\\. "), let match = m.firstMatch(in: s, range: NSRange(location: 0, length: (s as NSString).length)) {
+                    let r = match.range
+                    if let rr = Range(r, in: s) { return String(s[rr.upperBound...]) }
+                }
+                return s
+            }
+            tv.replaceText(in: block, with: stripped.joined(separator: "\n"))
+        } else {
+            // Add sequential numbers starting at 1
+            var i = 1
+            let numbered = lines.map { line -> String in
+                defer { i += 1 }
+                return "\(i). " + line
+            }
+            tv.replaceText(in: block, with: numbered.joined(separator: "\n"))
+        }
+        sendEditingChanged()
+    }
+
 
     private func addedPrefixForSelection(prefix: String, originalBlock: String, selection: NSRange, blockRange: NSRange) -> Int {
         // Rough heuristic: add prefix length if cursor not at very start of block
@@ -437,7 +468,7 @@ struct MarkdownTextView: UIViewRepresentable {
         let stack = UIStackView()
         stack.axis = .horizontal
         stack.alignment = .center
-        stack.spacing = 8
+        stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         container.contentView.addSubview(scroll)
@@ -459,14 +490,14 @@ struct MarkdownTextView: UIViewRepresentable {
             cfg.cornerStyle = .capsule
             cfg.background.backgroundColor = UIColor.secondarySystemFill
             cfg.baseForegroundColor = UIColor.label
-            cfg.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)
+            cfg.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
             cfg.imagePadding = 6
             if let title = title { cfg.title = title }
             if let name = systemName { cfg.image = UIImage(systemName: name) }
             let btn = UIButton(configuration: cfg)
             btn.translatesAutoresizingMaskIntoConstraints = false
             return btn
-        }perfe
+        }
 
         let h1 = makeButton("H1", nil)
         let h2 = makeButton("H2", nil)
@@ -474,12 +505,25 @@ struct MarkdownTextView: UIViewRepresentable {
         let italic = makeButton(nil, "italic")
         let strike = makeButton(nil, "strikethrough")
         let checklist = makeButton(nil, "checklist")
-        let bullet = makeButton("•", nil)
+        let bullet = makeButton(nil, "list.bullet")
+        let ordered = makeButton(nil, "list.number")
         let quote = makeButton(nil, "text.quote")
         let code = makeButton("`code`", nil)
         let link = makeButton(nil, "link")
 
-        [h1, h2, bold, italic, strike, checklist, bullet, quote, code, link].forEach { stack.addArrangedSubview($0) }
+        [h1, h2, bold, italic, strike, checklist, bullet, ordered, quote, code, link].forEach { stack.addArrangedSubview($0) }
+
+        // Color accents per group
+        func setBaseColor(_ btn: UIButton, _ color: UIColor) {
+            var cfg = btn.configuration
+            cfg?.background.backgroundColor = color.withAlphaComponent(0.18)
+            cfg?.baseForegroundColor = UIColor.label
+            btn.configuration = cfg
+        }
+        setBaseColor(h1, .systemTeal); setBaseColor(h2, .systemTeal)
+        setBaseColor(bold, .systemBlue); setBaseColor(italic, .systemBlue); setBaseColor(strike, .systemBlue)
+        setBaseColor(checklist, .systemGreen); setBaseColor(bullet, .systemGreen); setBaseColor(ordered, .systemGreen)
+        setBaseColor(quote, .systemGray); setBaseColor(code, .systemOrange); setBaseColor(link, .systemPurple)
 
         func setSelected(_ btn: UIButton, _ on: Bool) {
             guard var cfg = btn.configuration else { return }
@@ -514,6 +558,7 @@ struct MarkdownTextView: UIViewRepresentable {
         }, for: .primaryActionTriggered)
         checklist.addAction(UIAction { [weak controller] _ in controller?.toggleChecklist() }, for: .primaryActionTriggered)
         bullet.addAction(UIAction { [weak controller] _ in controller?.insertPrefixForSelectedLines("- ") }, for: .primaryActionTriggered)
+        ordered.addAction(UIAction { [weak controller] _ in controller?.toggleOrderedList() }, for: .primaryActionTriggered)
         quote.addAction(UIAction { [weak controller] _ in controller?.toggleBlockQuote() }, for: .primaryActionTriggered)
         code.addAction(UIAction { [weak controller] _ in controller?.wrapInlineCode() }, for: .primaryActionTriggered)
         link.addAction(UIAction { [weak controller] _ in controller?.wrapLink() }, for: .primaryActionTriggered)
@@ -548,6 +593,65 @@ struct MarkdownTextView: UIViewRepresentable {
             let glyphIndex = layout.glyphIndex(for: point, in: container)
             let charIndex = layout.characterIndexForGlyph(at: glyphIndex)
             controller?.toggleCheckbox(atCharacter: charIndex)
+        }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard text == "\n" else { return true }
+            guard let c = controller else { return true }
+            let ns = textView.text as NSString
+            let lineRange = ns.lineRange(for: NSRange(location: min(range.location, ns.length), length: 0))
+            let line = ns.substring(with: lineRange)
+
+            // Patterns
+            let unchecked = "- [ ] "
+            let checked = "- [x] "
+            let bullet = "- "
+            let numberRegex = try? NSRegularExpression(pattern: "^(\\d+)\\. ")
+            var nextPrefix: String? = nil
+            var endList = false
+
+            func isEmptyContent(after prefix: String) -> Bool {
+                if line.hasPrefix(prefix) {
+                    let rest = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                    return rest.isEmpty
+                }
+                return false
+            }
+
+            if line.hasPrefix(unchecked) || line.hasPrefix(checked) {
+                if isEmptyContent(after: line.hasPrefix(unchecked) ? unchecked : checked) {
+                    endList = true
+                } else {
+                    nextPrefix = unchecked
+                }
+            } else if line.hasPrefix(bullet) {
+                if isEmptyContent(after: bullet) { endList = true } else { nextPrefix = bullet }
+            } else if let re = numberRegex, let m = re.firstMatch(in: line, range: NSRange(location: 0, length: (line as NSString).length)) {
+                let numRange = m.range(at: 1)
+                if let rr = Range(numRange, in: line) {
+                    let n = Int(line[rr]) ?? 1
+                    let content = String(line.dropFirst((line as NSString).range(of: ". ", options: [], range: NSRange(location: 0, length: (line as NSString).length)).upperBound))
+                    if content.trimmingCharacters(in: .whitespaces).isEmpty {
+                        endList = true
+                    } else {
+                        nextPrefix = "\(n + 1). "
+                    }
+                }
+            }
+
+            if endList {
+                // Replace entire line with just a newline (remove the marker)
+                textView.replaceText(in: lineRange, with: "\n")
+                textView.selectedRange = NSRange(location: lineRange.location + 1, length: 0)
+                c.refreshPresentation()
+                return false
+            } else if let prefix = nextPrefix {
+                textView.replaceSelectedText(with: "\n" + prefix)
+                textView.selectedRange = NSRange(location: range.location + 1 + prefix.count, length: 0)
+                c.refreshPresentation()
+                return false
+            }
+            return true
         }
 
         // Only capture taps that hit a checkbox line near the leading edge
