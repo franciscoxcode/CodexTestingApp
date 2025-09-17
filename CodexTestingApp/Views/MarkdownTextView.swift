@@ -8,6 +8,14 @@ final class MarkdownEditorController: ObservableObject {
     private var anchors: [Mode: Int] = [:]
     private(set) var activeModes: Set<Mode> = []
     var showTokens: Bool = true
+    private(set) var didDoInitialStyle: Bool = false
+
+    // Cache regex to avoid recompilation on every keystroke
+    private static let reBold = try! NSRegularExpression(pattern: #"\*\*(.+?)\*\*"#, options: [])
+    private static let reStrike = try! NSRegularExpression(pattern: #"~~(.+?)~~"#, options: [])
+    // single-asterisk italics, avoiding **
+    private static let reItalic = try! NSRegularExpression(pattern: #"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"#, options: [])
+    private static let reChecklist = try! NSRegularExpression(pattern: #"(?m)^- \[ (?:\]|x)\]\s"#, options: [])
 
     func wrapSelection(with token: String) {
         guard let tv = textView else { return }
@@ -139,31 +147,72 @@ final class MarkdownEditorController: ObservableObject {
     }
 
     // MARK: - Live styling (syntax highlight + sticky overlays)
+    // Public entrypoint used while typing/selection changes
     func refreshPresentation() {
+        refresh(scope: .visible)
+    }
+
+    // Initial full pass (first mount or when tokens mode changed)
+    func refreshPresentationFull() {
+        refresh(scope: .full)
+        didDoInitialStyle = true
+    }
+
+    private enum RefreshScope { case full, visible }
+
+    private func refresh(scope: RefreshScope) {
         guard let tv = textView else { return }
         let storage = tv.textStorage
+        let ns = storage.string as NSString
+
+        // Determine target character range
+        let target: NSRange
+        switch scope {
+        case .full:
+            target = NSRange(location: 0, length: ns.length)
+        case .visible:
+            target = visibleCharacterRange(in: tv, nsLength: ns.length)
+        }
+
         storage.beginEditing()
-        applyBaseAttributes(storage)
-        applyHeadingAttributes(storage)
-        applyInlineAttributes(storage)
+        applyBaseAttributes(storage, in: target)
+        applyHeadingAttributes(storage, in: target)
+        applyInlineAttributes(storage, in: target)
         storage.endEditing()
         applyActiveModeVisuals()
     }
 
-    private func applyBaseAttributes(_ storage: NSTextStorage) {
-        let whole = NSRange(location: 0, length: storage.length)
-        storage.removeAttribute(.font, range: whole)
-        storage.removeAttribute(.foregroundColor, range: whole)
-        storage.removeAttribute(.strikethroughStyle, range: whole)
-        storage.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: whole)
-        storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
+    private func visibleCharacterRange(in tv: UITextView, nsLength: Int) -> NSRange {
+        let layout = tv.layoutManager
+        let container = tv.textContainer
+        // Compute visible rect in text container coordinates
+        var visible = tv.bounds
+        visible.origin = tv.contentOffset
+        visible = visible.insetBy(dx: tv.textContainerInset.left, dy: tv.textContainerInset.top)
+        let glyphs = layout.glyphRange(forBoundingRect: visible, in: container)
+        var chars = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        // Expand a bit above/below to reduce edge artifacts
+        let pad = 600
+        let loc = max(0, chars.location - pad)
+        let end = min(nsLength, chars.location + chars.length + pad)
+        chars = NSRange(location: loc, length: end - loc)
+        return chars
     }
 
-    private func applyHeadingAttributes(_ storage: NSTextStorage) {
+    private func applyBaseAttributes(_ storage: NSTextStorage, in range: NSRange) {
+        storage.removeAttribute(.font, range: range)
+        storage.removeAttribute(.foregroundColor, range: range)
+        storage.removeAttribute(.strikethroughStyle, range: range)
+        storage.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: range)
+        storage.addAttribute(.foregroundColor, value: UIColor.label, range: range)
+    }
+
+    private func applyHeadingAttributes(_ storage: NSTextStorage, in target: NSRange) {
         let ns = storage.string as NSString
-        var idx = 0
-        while idx <= ns.length {
-            let lineRange = ns.lineRange(for: NSRange(location: min(idx, ns.length), length: 0))
+        var idx = target.location
+        let limit = min(ns.length, target.location + target.length)
+        while idx < limit {
+            let lineRange = ns.lineRange(for: NSRange(location: idx, length: 0))
             if lineRange.length == 0 { break }
             let line = ns.substring(with: lineRange)
             if let match = try? NSRegularExpression(pattern: "^(#{1,6})\\s").firstMatch(in: line, options: [], range: NSRange(location: 0, length: (line as NSString).length)) {
@@ -189,63 +238,55 @@ final class MarkdownEditorController: ObservableObject {
                 storage.addAttribute(.font, value: font, range: contentRange)
             }
             idx = lineRange.location + lineRange.length
-            if idx >= ns.length { break }
         }
     }
 
-    private func applyInlineAttributes(_ storage: NSTextStorage) {
-        let s = storage.string as NSString
-        let full = NSRange(location: 0, length: s.length)
-        func applyRegex(_ pattern: String, tokenLen: Int, applyContent: (NSRange) -> Void) {
-            if let re = try? NSRegularExpression(pattern: pattern, options: []) {
-                re.enumerateMatches(in: storage.string, options: [], range: full) { match, _, _ in
-                    guard let m = match else { return }
-                    let range = m.range
-                    if range.length < tokenLen * 2 { return }
-                    let content = NSRange(location: range.location + tokenLen, length: range.length - tokenLen * 2)
-                    // dim or hide tokens
-                    let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
-                    let leading = NSRange(location: range.location, length: tokenLen)
-                    let trailing = NSRange(location: range.location + range.length - tokenLen, length: tokenLen)
-                    storage.addAttribute(.foregroundColor, value: tokenColor, range: leading)
-                    storage.addAttribute(.foregroundColor, value: tokenColor, range: trailing)
-                    if !showTokens {
-                        let tiny = UIFont.systemFont(ofSize: 0.1)
-                        storage.addAttribute(.font, value: tiny, range: leading)
-                        storage.addAttribute(.font, value: tiny, range: trailing)
-                    }
-                    applyContent(content)
+    private func applyInlineAttributes(_ storage: NSTextStorage, in range: NSRange) {
+        func applyRegex(_ re: NSRegularExpression, tokenLen: Int, applyContent: (NSRange) -> Void) {
+            re.enumerateMatches(in: storage.string, options: [], range: range) { match, _, _ in
+                guard let m = match else { return }
+                let mr = m.range
+                if mr.length < tokenLen * 2 { return }
+                let content = NSRange(location: mr.location + tokenLen, length: mr.length - tokenLen * 2)
+                let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
+                let leading = NSRange(location: mr.location, length: tokenLen)
+                let trailing = NSRange(location: mr.location + mr.length - tokenLen, length: tokenLen)
+                storage.addAttribute(.foregroundColor, value: tokenColor, range: leading)
+                storage.addAttribute(.foregroundColor, value: tokenColor, range: trailing)
+                if !showTokens {
+                    let tiny = UIFont.systemFont(ofSize: 0.1)
+                    storage.addAttribute(.font, value: tiny, range: leading)
+                    storage.addAttribute(.font, value: tiny, range: trailing)
                 }
+                applyContent(content)
             }
         }
         // Bold: **text**
-        applyRegex(#"\*\*(.+?)\*\*"#, tokenLen: 2) { content in
+        applyRegex(Self.reBold, tokenLen: 2) { content in
             if let desc = UIFont.preferredFont(forTextStyle: .body).fontDescriptor.withSymbolicTraits(.traitBold) {
                 let f = UIFont(descriptor: desc, size: UIFont.preferredFont(forTextStyle: .body).pointSize)
                 storage.addAttribute(.font, value: f, range: content)
             }
         }
         // Strike: ~~text~~
-        applyRegex(#"~~(.+?)~~"#, tokenLen: 2) { content in
+        applyRegex(Self.reStrike, tokenLen: 2) { content in
             storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: content)
         }
         // Italic: single *text* (avoid **)
-        applyRegex(#"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"#, tokenLen: 1) { content in
+        applyRegex(Self.reItalic, tokenLen: 1) { content in
             if let desc = UIFont.preferredFont(forTextStyle: .body).fontDescriptor.withSymbolicTraits(.traitItalic) {
                 let f = UIFont(descriptor: desc, size: UIFont.preferredFont(forTextStyle: .body).pointSize)
                 storage.addAttribute(.font, value: f, range: content)
             }
         }
         // Checklist tokens: dim '- [ ] '
-        if let re = try? NSRegularExpression(pattern: #"(?m)^- \[ (?:\]|x)\]\s"#, options: []) {
-            re.enumerateMatches(in: storage.string, options: [], range: full) { match, _, _ in
-                if let r = match?.range {
-                    let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
-                    storage.addAttribute(.foregroundColor, value: tokenColor, range: r)
-                    if !showTokens {
-                        let tiny = UIFont.systemFont(ofSize: 0.1)
-                        storage.addAttribute(.font, value: tiny, range: r)
-                    }
+        Self.reChecklist.enumerateMatches(in: storage.string, options: [], range: range) { match, _, _ in
+            if let r = match?.range {
+                let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
+                storage.addAttribute(.foregroundColor, value: tokenColor, range: r)
+                if !showTokens {
+                    let tiny = UIFont.systemFont(ofSize: 0.1)
+                    storage.addAttribute(.font, value: tiny, range: r)
                 }
             }
         }
@@ -445,10 +486,11 @@ struct MarkdownTextView: UIViewRepresentable {
         tv.isSelectable = true
         tv.text = text
         controller.textView = tv
+        tv.layoutManager.allowsNonContiguousLayout = true
         // Attach a custom accessory bar above the keyboard
         tv.inputAccessoryView = makeAccessoryBar()
         // Initial presentation styling
-        controller.refreshPresentation()
+        if !controller.didDoInitialStyle { controller.refreshPresentationFull() }
         // Tap to toggle checkbox state
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.cancelsTouchesInView = false
@@ -468,7 +510,8 @@ struct MarkdownTextView: UIViewRepresentable {
         if uiView.inputAccessoryView == nil {
             uiView.inputAccessoryView = makeAccessoryBar()
         }
-        controller.refreshPresentation()
+        // Only restyle fully on first mount; incremental styling occurs on changes
+        if !controller.didDoInitialStyle { controller.refreshPresentationFull() }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text, controller: controller) }
