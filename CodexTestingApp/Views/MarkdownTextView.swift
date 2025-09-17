@@ -142,9 +142,11 @@ final class MarkdownEditorController: ObservableObject {
     func refreshPresentation() {
         guard let tv = textView else { return }
         let storage = tv.textStorage
+        storage.beginEditing()
         applyBaseAttributes(storage)
         applyHeadingAttributes(storage)
         applyInlineAttributes(storage)
+        storage.endEditing()
         applyActiveModeVisuals()
     }
 
@@ -168,9 +170,13 @@ final class MarkdownEditorController: ObservableObject {
                 let hashesRange = match.range(at: 1)
                 let tokenRange = NSRange(location: lineRange.location + hashesRange.location, length: hashesRange.length + 1) // include space
                 let contentRange = NSRange(location: lineRange.location + hashesRange.length + 1, length: lineRange.length - (hashesRange.length + 1))
-                // Dim tokens
+                // Dim or hide tokens (zero-size font removes spacing)
                 let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
                 storage.addAttribute(.foregroundColor, value: tokenColor, range: tokenRange)
+                if !showTokens {
+                    let tiny = UIFont.systemFont(ofSize: 0.1)
+                    storage.addAttribute(.font, value: tiny, range: tokenRange)
+                }
                 // Larger font for content according to level
                 let level = hashesRange.length
                 let font: UIFont
@@ -197,10 +203,17 @@ final class MarkdownEditorController: ObservableObject {
                     let range = m.range
                     if range.length < tokenLen * 2 { return }
                     let content = NSRange(location: range.location + tokenLen, length: range.length - tokenLen * 2)
-                    // dim tokens
+                    // dim or hide tokens
                     let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
-                    storage.addAttribute(.foregroundColor, value: tokenColor, range: NSRange(location: range.location, length: tokenLen))
-                    storage.addAttribute(.foregroundColor, value: tokenColor, range: NSRange(location: range.location + range.length - tokenLen, length: tokenLen))
+                    let leading = NSRange(location: range.location, length: tokenLen)
+                    let trailing = NSRange(location: range.location + range.length - tokenLen, length: tokenLen)
+                    storage.addAttribute(.foregroundColor, value: tokenColor, range: leading)
+                    storage.addAttribute(.foregroundColor, value: tokenColor, range: trailing)
+                    if !showTokens {
+                        let tiny = UIFont.systemFont(ofSize: 0.1)
+                        storage.addAttribute(.font, value: tiny, range: leading)
+                        storage.addAttribute(.font, value: tiny, range: trailing)
+                    }
                     applyContent(content)
                 }
             }
@@ -229,6 +242,10 @@ final class MarkdownEditorController: ObservableObject {
                 if let r = match?.range {
                     let tokenColor = showTokens ? UIColor.secondaryLabel : UIColor.clear
                     storage.addAttribute(.foregroundColor, value: tokenColor, range: r)
+                    if !showTokens {
+                        let tiny = UIFont.systemFont(ofSize: 0.1)
+                        storage.addAttribute(.font, value: tiny, range: r)
+                    }
                 }
             }
         }
