@@ -587,6 +587,7 @@ struct MarkdownTextView: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
         var text: Binding<String>
         weak var controller: MarkdownEditorController?
+        private var didKickstartScroll = false
         init(text: Binding<String>, controller: MarkdownEditorController) { self.text = text; self.controller = controller }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -597,6 +598,21 @@ struct MarkdownTextView: UIViewRepresentable {
         }
         func textViewDidChangeSelection(_ textView: UITextView) {
             controller?.applyActiveModeVisuals()
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            // Kickstart layout/scroll so long notes can scroll before first keystroke.
+            // Do this once to avoid jitter and avoid polluting undo stack.
+            guard !didKickstartScroll else { return }
+            didKickstartScroll = true
+            DispatchQueue.main.async {
+                let undo = textView.undoManager
+                undo?.disableUndoRegistration()
+                textView.insertText(" ")
+                textView.deleteBackward()
+                undo?.enableUndoRegistration()
+                textView.scrollRangeToVisible(textView.selectedRange)
+            }
         }
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
