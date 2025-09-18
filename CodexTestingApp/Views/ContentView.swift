@@ -587,7 +587,14 @@ extension ContentView {
     private func newProjectOverlay() -> some View {
         if showingAddProject {
             ZStack {
-                Color.black.opacity(0.25).ignoresSafeArea()
+                Color.black.opacity(0.25)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        showingAddProject = false
+                        newProjectName = ""
+                        newProjectEmoji = ""
+                        newProjectColor = nil
+                    }
 
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
