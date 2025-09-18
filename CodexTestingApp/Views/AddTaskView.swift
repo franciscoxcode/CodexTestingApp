@@ -9,6 +9,7 @@ struct AddTaskView: View {
     // All tasks (for computing project-scoped existing tags)
     let tasks: [TaskItem]
     var onCreateProject: (String, String) -> ProjectItem
+    var onAddProjectTag: (ProjectItem.ID, String) -> Void
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
     var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void)? = nil
 
@@ -41,6 +42,8 @@ struct AddTaskView: View {
     @State private var tagText: String = ""
     @State private var showNewTagSheet: Bool = false
     @State private var newTagName: String = ""
+    // Session-only store of newly created tags per project so they remain selectable
+    @State private var sessionTags: [ProjectItem.ID: Set<String>] = [:]
     // Repeat (Phase 2 UI)
     @State private var repeatEnabled: Bool = false
     @State private var repeatInterval: Int = 2
@@ -50,20 +53,22 @@ struct AddTaskView: View {
     @State private var repeatCountLimitEnabled: Bool = false
     @State private var repeatCountLimit: Int = 5
 
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
+        self.onAddProjectTag = onAddProjectTag
         self.onSave = onSaveWithReminder
         _selectedProjectId = State(initialValue: preSelectedProjectId)
         _projectList = State(initialValue: projects)
     }
 
     // Full initializer including recurrence
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
+        self.onAddProjectTag = onAddProjectTag
         self.onSave = { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
             onSaveFull(title, project, difficulty, resistance, estimated, dueDate, reminderAt, nil, nil)
         }
@@ -504,32 +509,66 @@ struct AddTaskView: View {
             // Clear tag when switching projects
             tagText = ""
         }
-        .sheet(isPresented: $showNewTagSheet) {
-            VStack(spacing: 12) {
-                HStack {
-                    Button("Cancel") { showNewTagSheet = false; newTagName = "" }
-                    Spacer()
-                    Text("New Tag").font(.headline)
-                    Spacer()
-                    Button("Save") {
-                        let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty {
-                            let normalized = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
-                            tagText = normalized
+        // Centered overlay for creating a new tag (like New Project overlay)
+        .overlay(alignment: .center) {
+            if showNewTagSheet {
+                ZStack {
+                    Color.black.opacity(0.25).ignoresSafeArea()
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("New Tag").font(.headline)
+                            Spacer()
+                            Button {
+                                showNewTagSheet = false
+                                newTagName = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        newTagName = ""
-                        showNewTagSheet = false
+                        TextField("#Tag name", text: $newTagName)
+                            .textInputAutocapitalization(.never)
+                        HStack {
+                            Spacer()
+                            Button("Cancel") {
+                                showNewTagSheet = false
+                                newTagName = ""
+                            }
+                            Button("Save") {
+                                let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
+                                    let normalized = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+                                    tagText = normalized
+                                    if let pid = selectedProjectId {
+                                        var set = sessionTags[pid] ?? []
+                                        set.insert(normalized)
+                                        sessionTags[pid] = set
+                                        // Persist in project's catalog and mirror locally
+                                        onAddProjectTag(pid, normalized)
+                                        if let idx = projectList.firstIndex(where: { $0.id == pid }) {
+                                            var p = projectList[idx]
+                                            var tags = Set((p.tags ?? []))
+                                            tags.insert(normalized)
+                                            p.tags = Array(tags)
+                                            projectList[idx] = p
+                                        }
+                                    }
+                                }
+                                newTagName = ""
+                                showNewTagSheet = false
+                            }
+                            .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
                     }
-                    .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(16)
+                    .frame(maxWidth: 360)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(radius: 20)
+                    .offset(y: -140)
+                    .ignoresSafeArea(.keyboard)
                 }
-                .padding(.horizontal)
-                TextField("#Tag name", text: $newTagName)
-                    .textInputAutocapitalization(.never)
-                    .padding(.horizontal)
-                Spacer(minLength: 0)
             }
-            .presentationDetents([.height(160)])
-            .presentationDragIndicator(.visible)
         }
     }
 
@@ -552,9 +591,30 @@ struct AddTaskView: View {
 
     private var existingProjectTags: [String] {
         guard let pid = selectedProjectId else { return [] }
-        let raw = tasks.filter { $0.project?.id == pid }.compactMap { $0.tag?.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let unique = Array(Set(raw.filter { !$0.isEmpty }))
-        return unique.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        let raw = tasks
+            .filter { $0.project?.id == pid }
+            .compactMap { $0.tag?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let session = Array(sessionTags[pid] ?? [])
+        let projectTags: [String] = {
+            if let proj = projectList.first(where: { $0.id == pid }) {
+                return (proj.tags ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            }
+            return []
+        }()
+        var unique: [String] = Array(Set(raw).union(session).union(projectTags))
+        unique.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        if let sel = normalizedSelectedTag {
+            if let idx = unique.firstIndex(where: { $0.localizedCaseInsensitiveCompare(sel) == .orderedSame }) {
+                // Move selected to front
+                let val = unique.remove(at: idx)
+                unique.insert(val, at: 0)
+            } else {
+                // Insert newly created/typed tag at front
+                unique.insert(sel, at: 0)
+            }
+        }
+        return unique
     }
 
     private var normalizedSelectedTag: String? {

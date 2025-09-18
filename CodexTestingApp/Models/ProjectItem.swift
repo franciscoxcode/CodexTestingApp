@@ -8,12 +8,15 @@ struct ProjectItem: Identifiable, Codable, Equatable {
     var colorName: String? = nil
     // User-defined ordering (lower = earlier). If missing, we will migrate.
     var sortOrder: Int? = nil
+    // Optional catalog of project-scoped tags
+    var tags: [String]? = nil
 
-    init(id: UUID = UUID(), name: String, emoji: String, colorName: String? = nil, sortOrder: Int? = nil) {
+    init(id: UUID = UUID(), name: String, emoji: String, colorName: String? = nil, sortOrder: Int? = nil, tags: [String]? = nil) {
         self.id = id
         self.name = name
         self.emoji = emoji
         self.colorName = colorName
         self.sortOrder = sortOrder
+        self.tags = tags
     }
 }

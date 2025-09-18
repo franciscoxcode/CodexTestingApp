@@ -168,6 +168,22 @@ final class HomeViewModel: ObservableObject {
         saveProjects()
     }
 
+    // Persist a project-scoped tag in the project's catalog
+    func addTag(toProject id: UUID, tag: String) {
+        guard let idx = projects.firstIndex(where: { $0.id == id }) else { return }
+        let normalized = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        var p = projects[idx]
+        var set = Set((p.tags ?? []).map { $0 })
+        // case-insensitive uniqueness
+        if !set.contains(where: { $0.compare(normalized, options: .caseInsensitive) == .orderedSame }) {
+            set.insert(normalized)
+            p.tags = Array(set).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            projects[idx] = p
+            saveProjects()
+        }
+    }
+
     // Apply user-defined order by assigning consecutive sortOrder values
     func applyProjectOrder(idsInOrder: [UUID]) {
         var orderMap: [UUID: Int] = [:]

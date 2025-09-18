@@ -436,6 +436,9 @@ extension ContentView {
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
+            onAddProjectTag: { pid, tag in
+                viewModel.addTag(toProject: pid, tag: tag)
+            },
             onSaveFull: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?, tag: String?, recurrence: RecurrenceRule?) in
                 viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence, tag: tag)
             }
