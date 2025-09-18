@@ -27,7 +27,7 @@ struct TaskRow: View {
             Text(task.title)
                 .strikethrough(renderAsDone, color: .secondary)
                 .foregroundStyle(renderAsDone ? .secondary : .primary)
-                .onTapGesture { onEdit?(task) }
+                .onTapGesture { onOpenNote?(task) }
 
             Spacer(minLength: 8)
 
@@ -64,11 +64,11 @@ struct TaskRow: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
-                onOpenNote?(task)
+                onEdit?(task)
             } label: {
-                Label("Note", systemImage: "square.and.pencil")
+                Label("Edit Task", systemImage: "pencil")
             }
-            .tint(.blue)
+            .tint(.green)
         }
     }
 }
