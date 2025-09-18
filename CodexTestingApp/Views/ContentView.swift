@@ -459,6 +459,8 @@ extension ContentView {
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)
             },
+            onRenameProjectTag: { pid, old, new in viewModel.renameTag(onProject: pid, from: old, to: new) },
+            onDeleteProjectTag: { pid, tag in viewModel.deleteTag(onProject: pid, tag: tag) },
             onSaveFull: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?, tag: String?, recurrence: RecurrenceRule?) in
                 viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence, tag: tag)
             }
@@ -559,6 +561,8 @@ extension ContentView {
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)
             },
+            onRenameProjectTag: { pid, old, new in viewModel.renameTag(onProject: pid, from: old, to: new) },
+            onDeleteProjectTag: { pid, tag in viewModel.deleteTag(onProject: pid, tag: tag) },
             onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag in
                 viewModel.updateTask(
                     id: task.id,
@@ -860,12 +864,12 @@ extension ContentView {
                     tag: tag
                 )
             },
-            onCreateProject: { name, emoji, colorName in
-                viewModel.addProject(name: name, emoji: emoji, colorName: colorName)
-            },
+            onCreateProject: { name, emoji, colorName in viewModel.addProject(name: name, emoji: emoji, colorName: colorName) },
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)
             },
+            onRenameProjectTag: { pid, old, new in viewModel.renameTag(onProject: pid, from: old, to: new) },
+            onDeleteProjectTag: { pid, tag in viewModel.deleteTag(onProject: pid, tag: tag) },
             onUpdateTaskNote: { id, text in
                 viewModel.updateTaskNote(id: id, noteMarkdown: text)
             },

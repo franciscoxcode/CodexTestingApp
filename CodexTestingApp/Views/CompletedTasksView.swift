@@ -9,6 +9,8 @@ struct CompletedTasksView: View {
     var onUpdateTask: (_ original: TaskItem, _ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void
     var onCreateProject: (String, String, String?) -> ProjectItem
     var onAddProjectTag: (ProjectItem.ID, String) -> Void
+    var onRenameProjectTag: (ProjectItem.ID, String, String) -> Void = { _,_,_ in }
+    var onDeleteProjectTag: (ProjectItem.ID, String) -> Void = { _,_ in }
     var onUpdateTaskNote: (_ id: UUID, _ text: String) -> Void
     var onSetTaskDueDate: (_ id: UUID, _ dueDate: Date) -> Void
 
@@ -101,6 +103,8 @@ struct CompletedTasksView: View {
                     tasks: tasks,
                     onCreateProject: { name, emoji, colorName in onCreateProject(name, emoji, colorName) },
                     onAddProjectTag: { pid, tag in onAddProjectTag(pid, tag) },
+                    onRenameProjectTag: { pid, old, new in onRenameProjectTag(pid, old, new) },
+                    onDeleteProjectTag: { pid, tag in onDeleteProjectTag(pid, tag) },
                     onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag in
                         onUpdateTask(task, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag)
                     },

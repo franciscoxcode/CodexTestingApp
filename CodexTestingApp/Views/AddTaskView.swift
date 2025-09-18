@@ -10,6 +10,8 @@ struct AddTaskView: View {
     let tasks: [TaskItem]
     var onCreateProject: (String, String, String?) -> ProjectItem
     var onAddProjectTag: (ProjectItem.ID, String) -> Void
+    var onRenameProjectTag: (ProjectItem.ID, String, String) -> Void = { _,_,_ in }
+    var onDeleteProjectTag: (ProjectItem.ID, String) -> Void = { _,_ in }
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
     var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void)? = nil
 
@@ -42,7 +44,10 @@ struct AddTaskView: View {
     // Tag (scoped to selected project)
     @State private var tagText: String = ""
     @State private var showNewTagSheet: Bool = false
+    @State private var showEditTagSheet: Bool = false
     @State private var newTagName: String = ""
+    @State private var editingTagOriginal: String = ""
+    @State private var editingTagName: String = ""
     // Session-only store of newly created tags per project so they remain selectable
     @State private var sessionTags: [ProjectItem.ID: Set<String>] = [:]
     @FocusState private var isNewTagFocused: Bool
@@ -55,22 +60,26 @@ struct AddTaskView: View {
     @State private var repeatCountLimitEnabled: Bool = false
     @State private var repeatCountLimit: Int = 5
 
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onRenameProjectTag: @escaping (ProjectItem.ID, String, String) -> Void = { _,_,_ in }, onDeleteProjectTag: @escaping (ProjectItem.ID, String) -> Void = { _,_ in }, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
         self.onAddProjectTag = onAddProjectTag
+        self.onRenameProjectTag = onRenameProjectTag
+        self.onDeleteProjectTag = onDeleteProjectTag
         self.onSave = onSaveWithReminder
         _selectedProjectId = State(initialValue: preSelectedProjectId)
         _projectList = State(initialValue: projects)
     }
 
     // Full initializer including recurrence
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onRenameProjectTag: @escaping (ProjectItem.ID, String, String) -> Void = { _,_,_ in }, onDeleteProjectTag: @escaping (ProjectItem.ID, String) -> Void = { _,_ in }, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
         self.onAddProjectTag = onAddProjectTag
+        self.onRenameProjectTag = onRenameProjectTag
+        self.onDeleteProjectTag = onDeleteProjectTag
         self.onSave = { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
             onSaveFull(title, project, difficulty, resistance, estimated, dueDate, reminderAt, nil, nil)
         }
@@ -119,6 +128,13 @@ struct AddTaskView: View {
                                         SelectableChip(title: "#\(tag)", isSelected: isSelected, color: .blue) {
                                             if isSelected { tagText = "" } else { tagText = tag }
                                         }
+                                        .simultaneousGesture(
+                                            LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                                                editingTagOriginal = tag
+                                                editingTagName = tag
+                                                showEditTagSheet = true
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -477,6 +493,45 @@ struct AddTaskView: View {
                 .onAppear { isNewTagFocused = true }
             }
         }
+        // Edit/Delete tag overlay
+        .overlay(alignment: .center) {
+            if showEditTagSheet {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture { showEditTagSheet = false }
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Edit Tag").font(.headline)
+                            Spacer()
+                            Button { showEditTagSheet = false } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            }.buttonStyle(.plain)
+                        }
+                        TextField("#Tag name", text: $editingTagName)
+                            .textInputAutocapitalization(.never)
+                            .focused($isNewTagFocused)
+                            .submitLabel(.done)
+                            .onSubmit { saveEditedTag() }
+                        HStack {
+                            Button(role: .destructive) { deleteEditedTag() } label: { Text("Delete") }
+                            Spacer()
+                            Button("Cancel") { showEditTagSheet = false }
+                            Button("Save") { saveEditedTag() }
+                                .disabled(editingTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: 360)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(radius: 20)
+                    .offset(y: -140)
+                    .ignoresSafeArea(.keyboard)
+                    .onAppear { isNewTagFocused = true }
+                }
+            }
+        }
     }
 
     private var canSave: Bool {
@@ -530,6 +585,53 @@ struct AddTaskView: View {
 
     private var canCreateProject: Bool {
         !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // MARK: - Edit/Delete Tag helpers
+    private func saveEditedTag() {
+        let trimmed = editingTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let pid = selectedProjectId, !trimmed.isEmpty else { return }
+        if trimmed.compare(editingTagOriginal, options: .caseInsensitive) == .orderedSame {
+            showEditTagSheet = false
+            return
+        }
+        onRenameProjectTag(pid, editingTagOriginal, trimmed)
+        // Update local mirrors
+        if let idx = projectList.firstIndex(where: { $0.id == pid }) {
+            var p = projectList[idx]
+            var set = Set((p.tags ?? []))
+            set.remove(editingTagOriginal)
+            set.insert(trimmed)
+            p.tags = Array(set)
+            projectList[idx] = p
+        }
+        var sess = sessionTags[pid] ?? []
+        sess.remove(editingTagOriginal)
+        sess.insert(trimmed)
+        sessionTags[pid] = sess
+        if let sel = normalizedSelectedTag, sel.compare(editingTagOriginal, options: .caseInsensitive) == .orderedSame {
+            tagText = trimmed
+        }
+        showEditTagSheet = false
+    }
+
+    private func deleteEditedTag() {
+        guard let pid = selectedProjectId else { return }
+        onDeleteProjectTag(pid, editingTagOriginal)
+        if let idx = projectList.firstIndex(where: { $0.id == pid }) {
+            var p = projectList[idx]
+            var set = Set((p.tags ?? []))
+            set.remove(editingTagOriginal)
+            p.tags = Array(set)
+            projectList[idx] = p
+        }
+        var sess = sessionTags[pid] ?? []
+        sess.remove(editingTagOriginal)
+        sessionTags[pid] = sess
+        if let sel = normalizedSelectedTag, sel.compare(editingTagOriginal, options: .caseInsensitive) == .orderedSame {
+            tagText = ""
+        }
+        showEditTagSheet = false
     }
 }
 

@@ -198,6 +198,60 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    // Rename a project-scoped tag and update all tasks under that project
+    func renameTag(onProject id: UUID, from oldName: String, to newName: String) {
+        let oldNorm = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newNorm = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !oldNorm.isEmpty, !newNorm.isEmpty else { return }
+        guard let pidx = projects.firstIndex(where: { $0.id == id }) else { return }
+
+        var p = projects[pidx]
+        var set = Set((p.tags ?? []).map { $0 })
+        // Remove any case-insensitive match of old
+        if let existingOld = set.first(where: { $0.compare(oldNorm, options: .caseInsensitive) == .orderedSame }) {
+            set.remove(existingOld)
+        }
+        // Insert new (case-insensitive uniqueness)
+        if !set.contains(where: { $0.compare(newNorm, options: .caseInsensitive) == .orderedSame }) {
+            set.insert(newNorm)
+        }
+        p.tags = Array(set).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        projects[pidx] = p
+
+        // Update tasks' tag values for this project
+        for i in tasks.indices {
+            if tasks[i].project?.id == id, let t = tasks[i].tag,
+               t.compare(oldNorm, options: .caseInsensitive) == .orderedSame {
+                tasks[i].tag = newNorm
+            }
+        }
+        saveProjects()
+        saveTasks()
+    }
+
+    // Delete a project-scoped tag and clear it from tasks under that project
+    func deleteTag(onProject id: UUID, tag name: String) {
+        let norm = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !norm.isEmpty else { return }
+        guard let pidx = projects.firstIndex(where: { $0.id == id }) else { return }
+
+        var p = projects[pidx]
+        var set = Set((p.tags ?? []).map { $0 })
+        if let existing = set.first(where: { $0.compare(norm, options: .caseInsensitive) == .orderedSame }) {
+            set.remove(existing)
+            p.tags = Array(set).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            projects[pidx] = p
+        }
+        for i in tasks.indices {
+            if tasks[i].project?.id == id, let t = tasks[i].tag,
+               t.compare(norm, options: .caseInsensitive) == .orderedSame {
+                tasks[i].tag = nil
+            }
+        }
+        saveProjects()
+        saveTasks()
+    }
+
     // Apply user-defined order by assigning consecutive sortOrder values
     func applyProjectOrder(idsInOrder: [UUID]) {
         var orderMap: [UUID: Int] = [:]
