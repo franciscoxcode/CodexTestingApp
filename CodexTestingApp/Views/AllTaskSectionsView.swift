@@ -28,8 +28,13 @@ struct AllTaskSectionsView: View {
                 }
             }
 
-            // Then show the rest of the projects
-            ForEach(projects) { project in
+            // Then show the rest of the projects in user's preferred order
+            let ordered = projects.sorted { a, b in
+                let ak = (a.sortOrder ?? Int.max, a.name)
+                let bk = (b.sortOrder ?? Int.max, b.name)
+                return ak < bk
+            }
+            ForEach(ordered) { project in
                 let items = tasks.filter { $0.project?.id == project.id }
                 if !items.isEmpty {
                     Section(header: Text(project.name)) {
