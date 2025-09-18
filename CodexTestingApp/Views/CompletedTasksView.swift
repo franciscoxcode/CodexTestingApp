@@ -215,30 +215,7 @@ struct CompletedTasksView: View {
     }
 
     // Points calculation mirrors ContentView.points(for:)
-    private func points(for task: TaskItem) -> Int {
-        let difficultyPoints: Int = {
-            switch task.difficulty {
-            case .easy: return 10
-            case .medium: return 20
-            case .hard: return 35
-            }
-        }()
-        let resistancePoints: Int = {
-            switch task.resistance {
-            case .low: return 5
-            case .medium: return 10
-            case .high: return 20
-            }
-        }()
-        let timePoints: Int = {
-            switch task.estimatedTime {
-            case .short: return 5
-            case .medium: return 10
-            case .long: return 15
-            }
-        }()
-        return difficultyPoints + resistancePoints + timePoints
-    }
+    private func points(for task: TaskItem) -> Int { 20 }
 
     // MARK: - Header controls
     @ViewBuilder
