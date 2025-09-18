@@ -397,6 +397,30 @@ struct AddTaskView: View {
                         TextField("#Tag name", text: $newTagName)
                             .textInputAutocapitalization(.never)
                             .focused($isNewTagFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
+                                    let normalized = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+                                    tagText = normalized
+                                    if let pid = selectedProjectId {
+                                        var set = sessionTags[pid] ?? []
+                                        set.insert(normalized)
+                                        sessionTags[pid] = set
+                                        // Persist in project's catalog and mirror locally
+                                        onAddProjectTag(pid, normalized)
+                                        if let idx = projectList.firstIndex(where: { $0.id == pid }) {
+                                            var p = projectList[idx]
+                                            var tags = Set((p.tags ?? []))
+                                            tags.insert(normalized)
+                                            p.tags = Array(tags)
+                                            projectList[idx] = p
+                                        }
+                                    }
+                                    newTagName = ""
+                                    showNewTagSheet = false
+                                }
+                            }
                         HStack {
                             Spacer()
                             Button("Cancel") {
