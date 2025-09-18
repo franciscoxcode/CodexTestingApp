@@ -203,6 +203,7 @@ struct ContentView: View {
                     let today = TaskItem.defaultDueDate()
                     let tomorrow = TaskItem.defaultDueDate(nextDays(1))
                     let weekend = TaskItem.defaultDueDate(upcomingSaturday())
+                    let nextWeek = TaskItem.defaultDueDate(nextMonday())
                     if due != today {
                         Button("Today") {
                             viewModel.setTaskDueDate(id: t.id, dueDate: today)
@@ -218,6 +219,12 @@ struct ContentView: View {
                     if due != weekend {
                         Button("Weekend") {
                             viewModel.setTaskDueDate(id: t.id, dueDate: weekend)
+                            pendingMoveTask = nil
+                        }
+                    }
+                    if due != nextWeek {
+                        Button("Next week") {
+                            viewModel.setTaskDueDate(id: t.id, dueDate: nextWeek)
                             pendingMoveTask = nil
                         }
                     }
@@ -275,6 +282,17 @@ private func upcomingSaturday(from date: Date = Date()) -> Date {
     if current == sat { return date }
     var days = sat - current
     if days <= 0 { days += 7 }
+    return cal.date(byAdding: .day, value: days, to: date) ?? date
+}
+
+private func nextMonday(from date: Date = Date()) -> Date {
+    // Always returns the next Monday strictly after 'date'
+    let mon = 2 // Monday in Gregorian
+    var cal = Calendar.current
+    cal.firstWeekday = 1 // Sunday
+    let current = cal.component(.weekday, from: date)
+    var days = (mon - current + 7) % 7
+    if days == 0 { days = 7 }
     return cal.date(byAdding: .day, value: days, to: date) ?? date
 }
 
