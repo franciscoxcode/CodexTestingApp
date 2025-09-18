@@ -5,8 +5,10 @@ struct EditTaskView: View {
 
     // Inputs
     let projects: [ProjectItem]
+    let tasks: [TaskItem]
     var onCreateProject: (String, String) -> ProjectItem
-    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void
+    var onAddProjectTag: (ProjectItem.ID, String) -> Void
+    var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void
     var onDelete: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +28,11 @@ struct EditTaskView: View {
     // Reminder
     @State private var hasReminder: Bool
     @State private var reminderTime: Date
+    // Tag state
+    @State private var tagText: String
+    @State private var showNewTagSheet: Bool = false
+    @State private var newTagName: String = ""
+    @State private var sessionTags: [ProjectItem.ID: Set<String>] = [:]
     // Repeat (Phase 2 UI)
     @State private var repeatEnabled: Bool
     @State private var repeatInterval: Int
@@ -47,10 +54,12 @@ struct EditTaskView: View {
     @State private var showEstimatedInfo = false
     @State private var showDueInfo = false
 
-    init(task: TaskItem, projects: [ProjectItem], onCreateProject: @escaping (String, String) -> ProjectItem, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void, onDelete: (() -> Void)? = nil) {
+    init(task: TaskItem, projects: [ProjectItem], tasks: [TaskItem], onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void, onDelete: (() -> Void)? = nil) {
         self.task = task
         self.projects = projects
+        self.tasks = tasks
         self.onCreateProject = onCreateProject
+        self.onAddProjectTag = onAddProjectTag
         self.onSave = onSave
         self.onDelete = onDelete
 
@@ -90,6 +99,7 @@ struct EditTaskView: View {
             _repeatCountLimitEnabled = State(initialValue: false)
             _repeatCountLimit = State(initialValue: 5)
         }
+        _tagText = State(initialValue: task.tag ?? "")
     }
 
     private func shortDateLabel(_ date: Date) -> String {
@@ -138,6 +148,20 @@ struct EditTaskView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // Tag chips row (project-scoped)
+                        if selectedProjectId != nil {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    NewTagChip { showNewTagSheet = true }
+                                    ForEach(existingProjectTags, id: \.self) { tag in
+                                        let isSelected = (normalizedSelectedTag == tag)
+                                        SelectableChip(title: "#\(tag)", isSelected: isSelected, color: .blue) {
+                                            if isSelected { tagText = "" } else { tagText = tag }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -467,12 +491,17 @@ struct EditTaskView: View {
                         .disabled(!canSave)
                 }
             }
+            .overlay(alignment: .center) { newTagOverlay }
             .sheet(isPresented: $showingEmojiPicker) {
                 EmojiPickerView { selected in
                     newProjectEmoji = selected
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+            }
+            .onChangeCompat(of: selectedProjectId) { _, _ in
+                // Clear tag when switching projects
+                tagText = ""
             }
         }
     }
@@ -483,12 +512,75 @@ struct EditTaskView: View {
         let project = selectedProjectId.flatMap { id in projectList.first(where: { $0.id == id }) }
         let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
         let recurrence = repeatRule()
-        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
+        let tagToUse = (project != nil) ? tagText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty : nil
+        onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tagToUse)
         dismiss()
     }
 
     private var canCreateProject: Bool {
         !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !newProjectEmoji.isEmpty
+    }
+
+    // Overlay for new tag creation (centered, similar to New Project)
+    @ViewBuilder
+    private var newTagOverlay: some View {
+        if showNewTagSheet {
+            ZStack {
+                Color.black.opacity(0.25).ignoresSafeArea()
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text("New Tag").font(.headline)
+                        Spacer()
+                        Button {
+                            showNewTagSheet = false
+                            newTagName = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    TextField("#Tag name", text: $newTagName)
+                        .textInputAutocapitalization(.never)
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            showNewTagSheet = false
+                            newTagName = ""
+                        }
+                        Button("Save") {
+                            let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty {
+                                let normalized = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+                                tagText = normalized
+                                if let pid = selectedProjectId {
+                                    var set = sessionTags[pid] ?? []
+                                    set.insert(normalized)
+                                    sessionTags[pid] = set
+                                    onAddProjectTag(pid, normalized)
+                                    if let idx = projectList.firstIndex(where: { $0.id == pid }) {
+                                        var p = projectList[idx]
+                                        var tags = Set((p.tags ?? []))
+                                        tags.insert(normalized)
+                                        p.tags = Array(tags)
+                                        projectList[idx] = p
+                                    }
+                                }
+                            }
+                            newTagName = ""
+                            showNewTagSheet = false
+                        }
+                        .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: 360)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(radius: 20)
+                .offset(y: -140)
+                .ignoresSafeArea(.keyboard)
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -577,3 +669,34 @@ private extension EditTaskView {
 }
 
 private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+
+private extension EditTaskView {
+    var normalizedSelectedTag: String? {
+        tagText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+    var existingProjectTags: [String] {
+        guard let pid = selectedProjectId else { return [] }
+        let raw = tasks
+            .filter { $0.project?.id == pid }
+            .compactMap { $0.tag?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let session = Array(sessionTags[pid] ?? [])
+        let projectTags: [String] = {
+            if let proj = projectList.first(where: { $0.id == pid }) {
+                return (proj.tags ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            }
+            return []
+        }()
+        var unique: [String] = Array(Set(raw).union(session).union(projectTags))
+        unique.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        if let sel = normalizedSelectedTag {
+            if let idx = unique.firstIndex(where: { $0.localizedCaseInsensitiveCompare(sel) == .orderedSame }) {
+                let val = unique.remove(at: idx)
+                unique.insert(val, at: 0)
+            } else {
+                unique.insert(sel, at: 0)
+            }
+        }
+        return unique
+    }
+}

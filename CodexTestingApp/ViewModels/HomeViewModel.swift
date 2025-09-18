@@ -241,7 +241,8 @@ final class HomeViewModel: ObservableObject {
         estimatedTime: TaskEstimatedTime,
         dueDate: Date,
         reminderAt: Date?,
-        recurrence: RecurrenceRule?
+        recurrence: RecurrenceRule?,
+        tag: String? = nil
     ) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         var current = tasks[idx]
@@ -249,6 +250,11 @@ final class HomeViewModel: ObservableObject {
         current.title = title
         current.project = project
         if previousProjectId != project?.id {
+            current.tag = nil
+        }
+        if let p = project, let rawTag = tag?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTag.isEmpty {
+            current.tag = rawTag
+        } else if project == nil {
             current.tag = nil
         }
         current.difficulty = difficulty

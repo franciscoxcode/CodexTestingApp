@@ -6,8 +6,9 @@ struct CompletedTasksView: View {
     var onUncomplete: (TaskItem) -> Void
     var onClose: () -> Void
     var onProjectTap: (ProjectItem) -> Void = { _ in }
-    var onUpdateTask: (_ original: TaskItem, _ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void
+    var onUpdateTask: (_ original: TaskItem, _ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void
     var onCreateProject: (String, String) -> ProjectItem
+    var onAddProjectTag: (ProjectItem.ID, String) -> Void
     var onUpdateTaskNote: (_ id: UUID, _ text: String) -> Void
     var onSetTaskDueDate: (_ id: UUID, _ dueDate: Date) -> Void
 
@@ -97,9 +98,11 @@ struct CompletedTasksView: View {
                 EditTaskView(
                     task: task,
                     projects: projects,
+                    tasks: tasks,
                     onCreateProject: { name, emoji in onCreateProject(name, emoji) },
-                    onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
-                        onUpdateTask(task, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
+                    onAddProjectTag: { pid, tag in onAddProjectTag(pid, tag) },
+                    onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag in
+                        onUpdateTask(task, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag)
                     },
                     onDelete: nil
                 )

@@ -495,6 +495,19 @@ extension ContentView {
                         )
                         .id(timeAnchor) // force regrouping headers on day change
                     )
+                case (.project, .today), (.project, .tomorrow), (.project, .weekend), (.project, .custom(_)):
+                    return AnyView(
+                        TasksByTagView(
+                            tasks: filteredTasks,
+                            onLongPress: { _ in },
+                            onProjectTap: { project in selectedFilter = .project(project.id) },
+                            onToggle: { task in handleToggle(task) },
+                            onEdit: { task in editingTask = task },
+                            onDelete: { task in pendingDeleteTask = task },
+                            onMoveMenu: { task in pendingMoveTask = task },
+                            onOpenNote: { task in openNoteTask = task }
+                        )
+                    )
                 default:
                     return AnyView(
                         TaskFlatListView(
@@ -519,10 +532,14 @@ extension ContentView {
         EditTaskView(
             task: task,
             projects: viewModel.projects,
+            tasks: viewModel.tasks,
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
-            onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
+            onAddProjectTag: { pid, tag in
+                viewModel.addTag(toProject: pid, tag: tag)
+            },
+            onSave: { title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag in
                 viewModel.updateTask(
                     id: task.id,
                     title: title,
@@ -532,7 +549,8 @@ extension ContentView {
                     estimatedTime: estimated,
                     dueDate: dueDate,
                     reminderAt: reminderAt,
-                    recurrence: recurrence
+                    recurrence: recurrence,
+                    tag: tag
                 )
             },
             onDelete: {
@@ -823,7 +841,7 @@ extension ContentView {
                 selectedFilter = .project(project.id)
                 showingCompletedSheet = false
             },
-            onUpdateTask: { original, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence in
+            onUpdateTask: { original, title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence, tag in
                 viewModel.updateTask(
                     id: original.id,
                     title: title,
@@ -833,11 +851,15 @@ extension ContentView {
                     estimatedTime: estimated,
                     dueDate: dueDate,
                     reminderAt: reminderAt,
-                    recurrence: recurrence
+                    recurrence: recurrence,
+                    tag: tag
                 )
             },
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
+            },
+            onAddProjectTag: { pid, tag in
+                viewModel.addTag(toProject: pid, tag: tag)
             },
             onUpdateTaskNote: { id, text in
                 viewModel.updateTaskNote(id: id, noteMarkdown: text)
