@@ -188,6 +188,7 @@ final class HomeViewModel: ObservableObject {
         for i in tasks.indices {
             if tasks[i].project?.id == id {
                 tasks[i].project = nil
+                tasks[i].tag = nil
             }
         }
         // Persist both since tasks may have been modified
@@ -203,11 +204,13 @@ final class HomeViewModel: ObservableObject {
         estimatedTime: TaskEstimatedTime = .short,
         dueDate: Date = TaskItem.defaultDueDate(),
         reminderAt: Date? = nil,
-        recurrence: RecurrenceRule? = nil
+        recurrence: RecurrenceRule? = nil,
+        tag: String? = nil
     ) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let task = TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence)
+        let finalTag: String? = (project != nil) ? (tag?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty) : nil
+        let task = TaskItem(title: trimmed, isDone: false, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimatedTime, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence, noteMarkdown: nil, noteUpdatedAt: nil, tag: finalTag)
         tasks.append(task)
         saveTasks()
         if let _ = task.reminderAt { NotificationManager.shared.scheduleReminder(for: task) }
@@ -226,8 +229,12 @@ final class HomeViewModel: ObservableObject {
     ) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         var current = tasks[idx]
+        let previousProjectId = current.project?.id
         current.title = title
         current.project = project
+        if previousProjectId != project?.id {
+            current.tag = nil
+        }
         current.difficulty = difficulty
         current.resistance = resistance
         current.estimatedTime = estimatedTime

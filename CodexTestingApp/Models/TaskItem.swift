@@ -10,6 +10,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
     var isDone: Bool
     var completedAt: Date? = nil
     var project: ProjectItem?
+    // Optional single tag scoped to the task's project
+    var tag: String? = nil
     var difficulty: TaskDifficulty
     var resistance: TaskResistance
     var estimatedTime: TaskEstimatedTime
@@ -34,13 +36,15 @@ struct TaskItem: Identifiable, Codable, Equatable {
         reminderAt: Date? = nil,
         recurrence: RecurrenceRule? = nil,
         noteMarkdown: String? = nil,
-        noteUpdatedAt: Date? = nil
+        noteUpdatedAt: Date? = nil,
+        tag: String? = nil
     ) {
         self.id = id
         self.title = title
         self.isDone = isDone
         self.completedAt = nil
         self.project = project
+        self.tag = tag
         self.difficulty = difficulty
         self.resistance = resistance
         self.estimatedTime = estimatedTime

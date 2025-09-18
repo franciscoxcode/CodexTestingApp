@@ -431,12 +431,13 @@ extension ContentView {
         }()
         return AddTaskView(
             projects: viewModel.projects,
+            tasks: viewModel.tasks,
             preSelectedProjectId: preselectedId,
             onCreateProject: { name, emoji in
                 viewModel.addProject(name: name, emoji: emoji)
             },
-            onSaveFull: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?, recurrence: RecurrenceRule?) in
-                viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence)
+            onSaveFull: { (title: String, project: ProjectItem?, difficulty: TaskDifficulty, resistance: TaskResistance, estimated: TaskEstimatedTime, dueDate: Date, reminderAt: Date?, tag: String?, recurrence: RecurrenceRule?) in
+                viewModel.addTask(title: title, project: project, difficulty: difficulty, resistance: resistance, estimatedTime: estimated, dueDate: dueDate, reminderAt: reminderAt, recurrence: recurrence, tag: tag)
             }
         )
     }

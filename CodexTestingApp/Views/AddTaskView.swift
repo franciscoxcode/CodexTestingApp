@@ -6,9 +6,11 @@ struct AddTaskView: View {
 
     // Projects input and callbacks
     let projects: [ProjectItem]
+    // All tasks (for computing project-scoped existing tags)
+    let tasks: [TaskItem]
     var onCreateProject: (String, String) -> ProjectItem
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
-    var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void)? = nil
+    var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void)? = nil
 
     // Selection state
     @State private var selectedProjectId: ProjectItem.ID?
@@ -35,6 +37,10 @@ struct AddTaskView: View {
     // Reminder
     @State private var hasReminder: Bool = false
     @State private var reminderTime: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+    // Tag (scoped to selected project)
+    @State private var tagText: String = ""
+    @State private var showNewTagSheet: Bool = false
+    @State private var newTagName: String = ""
     // Repeat (Phase 2 UI)
     @State private var repeatEnabled: Bool = false
     @State private var repeatInterval: Int = 2
@@ -44,8 +50,9 @@ struct AddTaskView: View {
     @State private var repeatCountLimitEnabled: Bool = false
     @State private var repeatCountLimit: Int = 5
 
-    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
+        self.tasks = tasks
         self.onCreateProject = onCreateProject
         self.onSave = onSaveWithReminder
         _selectedProjectId = State(initialValue: preSelectedProjectId)
@@ -53,11 +60,12 @@ struct AddTaskView: View {
     }
 
     // Full initializer including recurrence
-    init(projects: [ProjectItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
         self.projects = projects
+        self.tasks = tasks
         self.onCreateProject = onCreateProject
         self.onSave = { title, project, difficulty, resistance, estimated, dueDate, reminderAt in
-            onSaveFull(title, project, difficulty, resistance, estimated, dueDate, reminderAt, nil)
+            onSaveFull(title, project, difficulty, resistance, estimated, dueDate, reminderAt, nil, nil)
         }
         self.onSaveFull = onSaveFull
         _selectedProjectId = State(initialValue: preSelectedProjectId)
@@ -75,10 +83,6 @@ struct AddTaskView: View {
                     }
 
                     Section {
-                        HStack(spacing: 8) {
-                            Text("Project").font(.headline)
-                            Spacer()
-                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 NewProjectChip { showingAddProject = true }
@@ -97,6 +101,20 @@ struct AddTaskView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // Hashtags row (project-scoped), similar to Project chips
+                        if selectedProjectId != nil {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    NewTagChip { showNewTagSheet = true }
+                                    ForEach(existingProjectTags, id: \.self) { tag in
+                                        let isSelected = (normalizedSelectedTag == tag)
+                                        SelectableChip(title: "#\(tag)", isSelected: isSelected, color: .blue) {
+                                            if isSelected { tagText = "" } else { tagText = tag }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -482,6 +500,37 @@ struct AddTaskView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .onChangeCompat(of: selectedProjectId) { _, _ in
+            // Clear tag when switching projects
+            tagText = ""
+        }
+        .sheet(isPresented: $showNewTagSheet) {
+            VStack(spacing: 12) {
+                HStack {
+                    Button("Cancel") { showNewTagSheet = false; newTagName = "" }
+                    Spacer()
+                    Text("New Tag").font(.headline)
+                    Spacer()
+                    Button("Save") {
+                        let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            let normalized = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+                            tagText = normalized
+                        }
+                        newTagName = ""
+                        showNewTagSheet = false
+                    }
+                    .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.horizontal)
+                TextField("#Tag name", text: $newTagName)
+                    .textInputAutocapitalization(.never)
+                    .padding(.horizontal)
+                Spacer(minLength: 0)
+            }
+            .presentationDetents([.height(160)])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var canSave: Bool {
@@ -493,11 +542,23 @@ struct AddTaskView: View {
         let reminderAt = hasReminder ? combineDayAndTime(dueDate, reminderTime) : nil
         let recurrence = repeatRule()
         if let full = onSaveFull {
-            full(title, project, difficulty, resistance, estimated, dueDate, reminderAt, recurrence)
+            let tagToUse = (project != nil) ? tagText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty : nil
+            full(title, project, difficulty, resistance, estimated, dueDate, reminderAt, tagToUse, recurrence)
         } else {
             onSave(title, project, difficulty, resistance, estimated, dueDate, reminderAt)
         }
         dismiss()
+    }
+
+    private var existingProjectTags: [String] {
+        guard let pid = selectedProjectId else { return [] }
+        let raw = tasks.filter { $0.project?.id == pid }.compactMap { $0.tag?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let unique = Array(Set(raw.filter { !$0.isEmpty }))
+        return unique.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private var normalizedSelectedTag: String? {
+        tagText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
     private var canCreateProject: Bool {

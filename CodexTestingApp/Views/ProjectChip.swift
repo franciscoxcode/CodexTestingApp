@@ -28,7 +28,25 @@ struct NewProjectChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            Label("New", systemImage: "plus")
+            Text("+ Project")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .overlay(
+                    Capsule().stroke(Color.secondary.opacity(0.3))
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct NewTagChip: View {
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text("+ Tag")
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
