@@ -8,7 +8,7 @@ struct AddTaskView: View {
     let projects: [ProjectItem]
     // All tasks (for computing project-scoped existing tags)
     let tasks: [TaskItem]
-    var onCreateProject: (String, String) -> ProjectItem
+    var onCreateProject: (String, String, String?) -> ProjectItem
     var onAddProjectTag: (ProjectItem.ID, String) -> Void
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void
     var onSaveFull: ((_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void)? = nil
@@ -55,7 +55,7 @@ struct AddTaskView: View {
     @State private var repeatCountLimitEnabled: Bool = false
     @State private var repeatCountLimit: Int = 5
 
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveWithReminder: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
@@ -66,7 +66,7 @@ struct AddTaskView: View {
     }
 
     // Full initializer including recurrence
-    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
+    init(projects: [ProjectItem], tasks: [TaskItem], preSelectedProjectId: ProjectItem.ID? = nil, onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSaveFull: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ tag: String?, _ recurrence: RecurrenceRule?) -> Void) {
         self.projects = projects
         self.tasks = tasks
         self.onCreateProject = onCreateProject
@@ -336,7 +336,11 @@ struct AddTaskView: View {
                                     newProjectColor = nil
                                 }
                                 Button("Create") {
-                                    let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
+                                    let created = onCreateProject(
+                                        newProjectName.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        newProjectEmoji,
+                                        colorName(from: newProjectColor)
+                                    )
                                     projectList.append(created)
                                     selectedProjectId = created.id
                                     showingAddProject = false
@@ -525,12 +529,22 @@ struct AddTaskView: View {
     }
 
     private var canCreateProject: Bool {
-        !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !newProjectEmoji.isEmpty
+        !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
 // MARK: - Date helpers
 private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+
+private var projectColorNames: [String] { ["yellow", "green", "blue", "purple", "pink", "orange", "teal", "mint", "indigo", "red", "brown", "gray"] }
+
+private func colorName(from color: Color?) -> String? {
+    guard let color = color else { return nil }
+    if let idx = projectColorSwatches.firstIndex(where: { $0.description == color.description }) {
+        return projectColorNames[idx]
+    }
+    return nil
+}
 
 private func shortDateLabel(_ date: Date) -> String {
     let cal = Calendar.current

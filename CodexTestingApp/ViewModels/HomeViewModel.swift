@@ -148,14 +148,28 @@ final class HomeViewModel: ObservableObject {
     }
 
     @discardableResult
-    func addProject(name: String, emoji: String) -> ProjectItem {
+    func addProject(name: String, emoji: String?, colorName: String? = nil) -> ProjectItem {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-        let project = ProjectItem(name: trimmedName, emoji: trimmedEmoji.isEmpty ? "📁" : trimmedEmoji)
+        let trimmedEmoji = (emoji ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalEmoji = trimmedEmoji.isEmpty ? HomeViewModel.randomProjectEmoji() : trimmedEmoji
+        let finalColor = colorName ?? HomeViewModel.randomProjectColorName()
+        let project = ProjectItem(name: trimmedName, emoji: finalEmoji, colorName: finalColor)
         projects.append(project)
         // Persist immediately to avoid losing data if app is killed before Combine sink fires
         saveProjects()
         return project
+    }
+
+    private static func randomProjectEmoji() -> String {
+        let candidates: [String] = [
+            "📁", "🚀", "🏡", "📚", "🧺", "🎉", "🛰", "🎯", "🛠️", "⭐️", "☀️", "🍀", "🔧", "🧠", "💡", "🏆"
+        ]
+        return candidates.randomElement() ?? "📁"
+    }
+
+    private static func randomProjectColorName() -> String {
+        let names = ["yellow", "green", "blue", "purple", "pink", "orange", "teal", "mint", "indigo", "red", "brown", "gray"]
+        return names.randomElement() ?? "gray"
     }
 
     func updateProject(id: UUID, name: String, emoji: String, colorName: String?) {

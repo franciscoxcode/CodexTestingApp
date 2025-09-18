@@ -54,6 +54,7 @@ struct ContentView: View {
     @State private var editProjectName: String = ""
     @State private var editProjectEmoji: String = ""
     @State private var editProjectColor: Color? = nil
+    @FocusState private var isEditProjectNameFocused: Bool
     @FocusState private var isNewProjectNameFocused: Bool
     // Pending hide window for recently completed tasks
     @State private var pendingHideUntil: [UUID: Date] = [:]
@@ -452,8 +453,8 @@ extension ContentView {
             projects: viewModel.projects,
             tasks: viewModel.tasks,
             preSelectedProjectId: preselectedId,
-            onCreateProject: { name, emoji in
-                viewModel.addProject(name: name, emoji: emoji)
+            onCreateProject: { name, emoji, colorName in
+                viewModel.addProject(name: name, emoji: emoji, colorName: colorName)
             },
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)
@@ -552,8 +553,8 @@ extension ContentView {
             task: task,
             projects: viewModel.projects,
             tasks: viewModel.tasks,
-            onCreateProject: { name, emoji in
-                viewModel.addProject(name: name, emoji: emoji)
+            onCreateProject: { name, emoji, colorName in
+                viewModel.addProject(name: name, emoji: emoji, colorName: colorName)
             },
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)
@@ -650,7 +651,11 @@ extension ContentView {
                             newProjectColor = nil
                         }
                         Button("Create") {
-                            let created: ProjectItem = viewModel.addProject(name: newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), emoji: newProjectEmoji)
+                            let created: ProjectItem = viewModel.addProject(
+                                name: newProjectName.trimmingCharacters(in: .whitespacesAndNewlines),
+                                emoji: newProjectEmoji,
+                                colorName: colorName(from: newProjectColor)
+                            )
                             // select the newly created project
                             selectedFilter = .project(created.id)
                             showingAddProject = false
@@ -658,7 +663,7 @@ extension ContentView {
                             newProjectEmoji = ""
                             newProjectColor = nil
                         }
-                        .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newProjectEmoji.isEmpty)
+                        .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
                 .padding(16)
@@ -710,6 +715,7 @@ extension ContentView {
 
                         TextField("Project name", text: $editProjectName)
                             .textInputAutocapitalization(.words)
+                            .focused($isEditProjectNameFocused)
                     }
 
                     // Color palette (horizontal scroll)
@@ -770,6 +776,7 @@ extension ContentView {
                 .shadow(radius: 20)
                 .offset(y: -140)
                 .ignoresSafeArea(.keyboard)
+                .onAppear { isEditProjectNameFocused = true }
             }
             .ignoresSafeArea(.keyboard)
         }
@@ -853,8 +860,8 @@ extension ContentView {
                     tag: tag
                 )
             },
-            onCreateProject: { name, emoji in
-                viewModel.addProject(name: name, emoji: emoji)
+            onCreateProject: { name, emoji, colorName in
+                viewModel.addProject(name: name, emoji: emoji, colorName: colorName)
             },
             onAddProjectTag: { pid, tag in
                 viewModel.addTag(toProject: pid, tag: tag)

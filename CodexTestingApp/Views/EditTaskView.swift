@@ -6,7 +6,7 @@ struct EditTaskView: View {
     // Inputs
     let projects: [ProjectItem]
     let tasks: [TaskItem]
-    var onCreateProject: (String, String) -> ProjectItem
+    var onCreateProject: (String, String, String?) -> ProjectItem
     var onAddProjectTag: (ProjectItem.ID, String) -> Void
     var onSave: (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void
     var onDelete: (() -> Void)? = nil
@@ -56,7 +56,7 @@ struct EditTaskView: View {
     @State private var showEstimatedInfo = false
     @State private var showDueInfo = false
 
-    init(task: TaskItem, projects: [ProjectItem], tasks: [TaskItem], onCreateProject: @escaping (String, String) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void, onDelete: (() -> Void)? = nil) {
+    init(task: TaskItem, projects: [ProjectItem], tasks: [TaskItem], onCreateProject: @escaping (String, String, String?) -> ProjectItem, onAddProjectTag: @escaping (ProjectItem.ID, String) -> Void, onSave: @escaping (_ title: String, _ project: ProjectItem?, _ difficulty: TaskDifficulty, _ resistance: TaskResistance, _ estimated: TaskEstimatedTime, _ dueDate: Date, _ reminderAt: Date?, _ recurrence: RecurrenceRule?, _ tag: String?) -> Void, onDelete: (() -> Void)? = nil) {
         self.task = task
         self.projects = projects
         self.tasks = tasks
@@ -390,7 +390,11 @@ struct EditTaskView: View {
                                     newProjectColor = nil
                                 }
                                 Button("Create") {
-                                    let created = onCreateProject(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines), newProjectEmoji)
+                                    let created = onCreateProject(
+                                        newProjectName.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        newProjectEmoji,
+                                        colorName(from: newProjectColor)
+                                    )
                                     projectList.append(created)
                                     selectedProjectId = created.id
                                     showingAddProject = false
@@ -449,7 +453,7 @@ struct EditTaskView: View {
     }
 
     private var canCreateProject: Bool {
-        !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !newProjectEmoji.isEmpty
+        !newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // Overlay for new tag creation (centered, similar to New Project)
@@ -604,6 +608,16 @@ private func dateTimeFormatterFactory_Edit() -> DateFormatter {
 
 private var dateTimeFormatter: DateFormatter { dateTimeFormatterFactory_Edit() }
 
+private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+private var projectColorNames: [String] { ["yellow", "green", "blue", "purple", "pink", "orange", "teal", "mint", "indigo", "red", "brown", "gray"] }
+private func colorName(from color: Color?) -> String? {
+    guard let color = color else { return nil }
+    if let idx = projectColorSwatches.firstIndex(where: { $0.description == color.description }) {
+        return projectColorNames[idx]
+    }
+    return nil
+}
+
 private extension EditTaskView {
     func repeatRule() -> RecurrenceRule? {
         guard repeatEnabled else { return nil }
@@ -630,7 +644,7 @@ private extension EditTaskView {
     }
 }
 
-private var projectColorSwatches: [Color] { [.yellow, .green, .blue, .purple, .pink, .orange, .teal, .mint, .indigo, .red, .brown, .gray] }
+// projectColorSwatches moved above with name mapping helpers
 
 private extension EditTaskView {
     var normalizedSelectedTag: String? {
