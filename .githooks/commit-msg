@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+FILE="$1"
+MSG="$(sed -n '1p' "$FILE")"
+
+# Allow merge and revert commits to pass
+if [[ "$MSG" =~ ^(Merge|Revert) ]]; then
+  exit 0
+fi
+
+# Enforce: type: feature-name: short summary
+# Types allowed: feat, fix, refactor, docs, chore, test, build, ci, perf, style
+REGEX='^(feat|fix|refactor|docs|chore|test|build|ci|perf|style): [a-z0-9-]+: .+'
+
+if ! [[ "$MSG" =~ $REGEX ]]; then
+  echo "✖ Commit message must match: 'type: feature-name: short summary'" >&2
+  echo "  - type ∈ {feat, fix, refactor, docs, chore, test, build, ci, perf, style}" >&2
+  echo "  - feature-name in kebab-case (a-z, 0-9, -)" >&2
+  echo "  - example: 'feat: task-row-interactions: tap opens note'" >&2
+  exit 1
+fi
+
+# Limit first line length to 100 chars
+LEN=${#MSG}
+if (( LEN > 100 )); then
+  echo "✖ First line too long (\$LEN > 100). Keep it concise." >&2
+  exit 1
+fi
+
+exit 0
+

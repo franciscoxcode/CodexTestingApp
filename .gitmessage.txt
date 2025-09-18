@@ -1,0 +1,17 @@
+# Commit message template (first line is the only required part)
+#
+# Format: type: feature-name: short summary
+# Types: feat, fix, refactor, docs, chore, test, build, ci, perf, style
+# Feature name: kebab-case (a-z, 0-9, -)
+# Max 100 chars for the first line
+#
+# Examples:
+# feat: task-row-interactions: tap opens note; left swipe edits
+# fix: note-editor-autosave: prevent duplicate saves on blur
+# chore: commit-convention: add commit template and hook
+#
+# Optional body (wrap at ~72 chars per line):
+# - What and why
+# - Any breaking changes or migrations
+# - References (issue links, etc.)
+
