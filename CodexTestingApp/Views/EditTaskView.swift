@@ -601,6 +601,7 @@ struct EditTaskView: View {
                 .ignoresSafeArea(.keyboard)
                 .onAppear { isNewTagFocused = true }
             }
+            .ignoresSafeArea(.keyboard)
         }
     }
 
