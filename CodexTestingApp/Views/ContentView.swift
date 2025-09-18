@@ -54,6 +54,7 @@ struct ContentView: View {
     @State private var editProjectName: String = ""
     @State private var editProjectEmoji: String = ""
     @State private var editProjectColor: Color? = nil
+    @FocusState private var isNewProjectNameFocused: Bool
     // Pending hide window for recently completed tasks
     @State private var pendingHideUntil: [UUID: Date] = [:]
     // Full-screen note editor state
@@ -615,6 +616,7 @@ extension ContentView {
 
                         TextField("Project name", text: $newProjectName)
                             .textInputAutocapitalization(.words)
+                            .focused($isNewProjectNameFocused)
                     }
 
                     // Color palette (horizontal scroll to avoid overflow)
@@ -667,6 +669,7 @@ extension ContentView {
                 .offset(y: -140)
                 // Prevent the overlay from being pushed by the keyboard
                 .ignoresSafeArea(.keyboard)
+                .onAppear { isNewProjectNameFocused = true }
             }
             .ignoresSafeArea(.keyboard) // keep overlay fixed when keyboard appears
         }
