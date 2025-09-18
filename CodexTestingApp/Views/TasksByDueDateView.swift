@@ -51,7 +51,8 @@ struct TasksByDueDateView: View {
             if date == today { title = "Today" }
             else if date == TaskItem.defaultDueDate(Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()) { title = "Tomorrow" }
             else { title = headerFormatter.string(from: date) }
-            let items = (grouped[date] ?? []).sorted { $0.title < $1.title }
+            // Preserve insertion order within each date group
+            let items = grouped[date] ?? []
             return (title, items)
         }
     }
