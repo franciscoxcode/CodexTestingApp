@@ -128,10 +128,6 @@ struct EditTaskView: View {
                     
 
                     Section {
-                        HStack(spacing: 8) {
-                            Text("Project").font(.headline)
-                            Spacer()
-                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 NewProjectChip { showingAddProject = true }
