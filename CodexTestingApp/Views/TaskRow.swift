@@ -27,7 +27,6 @@ struct TaskRow: View {
             Text(task.title)
                 .strikethrough(renderAsDone, color: .secondary)
                 .foregroundStyle(renderAsDone ? .secondary : .primary)
-                .onTapGesture { onOpenNote?(task) }
 
             Spacer(minLength: 8)
 
@@ -53,6 +52,8 @@ struct TaskRow: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpenNote?(task) }
         .listRowSeparator(.hidden)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
