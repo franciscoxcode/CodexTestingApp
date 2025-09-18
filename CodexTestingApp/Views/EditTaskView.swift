@@ -33,6 +33,7 @@ struct EditTaskView: View {
     @State private var showNewTagSheet: Bool = false
     @State private var newTagName: String = ""
     @State private var sessionTags: [ProjectItem.ID: Set<String>] = [:]
+    @FocusState private var isNewTagFocused: Bool
     // Repeat (Phase 2 UI)
     @State private var repeatEnabled: Bool
     @State private var repeatInterval: Int
@@ -468,6 +469,7 @@ struct EditTaskView: View {
                     }
                     TextField("#Tag name", text: $newTagName)
                         .textInputAutocapitalization(.never)
+                        .focused($isNewTagFocused)
                     HStack {
                         Spacer()
                         Button("Cancel") {
@@ -507,6 +509,8 @@ struct EditTaskView: View {
                 .offset(y: -140)
                 .ignoresSafeArea(.keyboard)
             }
+            .ignoresSafeArea(.keyboard)
+            .onAppear { isNewTagFocused = true }
         }
     }
 

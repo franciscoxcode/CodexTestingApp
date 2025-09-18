@@ -44,6 +44,7 @@ struct AddTaskView: View {
     @State private var newTagName: String = ""
     // Session-only store of newly created tags per project so they remain selectable
     @State private var sessionTags: [ProjectItem.ID: Set<String>] = [:]
+    @FocusState private var isNewTagFocused: Bool
     // Repeat (Phase 2 UI)
     @State private var repeatEnabled: Bool = false
     @State private var repeatInterval: Int = 2
@@ -395,6 +396,7 @@ struct AddTaskView: View {
                         }
                         TextField("#Tag name", text: $newTagName)
                             .textInputAutocapitalization(.never)
+                            .focused($isNewTagFocused)
                         HStack {
                             Spacer()
                             Button("Cancel") {
@@ -435,6 +437,8 @@ struct AddTaskView: View {
                     .offset(y: -140)
                     .ignoresSafeArea(.keyboard)
                 }
+                .ignoresSafeArea(.keyboard)
+                .onAppear { isNewTagFocused = true }
             }
         }
     }
