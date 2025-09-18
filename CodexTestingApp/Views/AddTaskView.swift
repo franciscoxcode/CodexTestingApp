@@ -19,6 +19,7 @@ struct AddTaskView: View {
     @State private var showingAddProject = false
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
+    @FocusState private var isAddProjectNameFocused: Bool
     @State private var newProjectColor: Color? = nil
     @State private var showingEmojiPicker = false
     // Attributes
@@ -301,6 +302,7 @@ struct AddTaskView: View {
 
                                 TextField("Project name", text: $newProjectName)
                                     .textInputAutocapitalization(.words)
+                                    .focused($isAddProjectNameFocused)
                             }
 
                             // Color palette (creation preview only, horizontal scroll)
@@ -351,6 +353,7 @@ struct AddTaskView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .shadow(radius: 20)
                         .offset(y: -140)
+                        .onAppear { isAddProjectNameFocused = true }
                     }
                     .ignoresSafeArea(.keyboard) // keep overlay fixed when keyboard appears
                 }

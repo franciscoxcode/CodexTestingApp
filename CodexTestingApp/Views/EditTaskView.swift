@@ -47,6 +47,7 @@ struct EditTaskView: View {
     @State private var newProjectName: String = ""
     @State private var newProjectEmoji: String = ""
     @State private var newProjectColor: Color? = nil
+    @FocusState private var isAddProjectNameFocused: Bool
     @State private var showingEmojiPicker = false
 
     // Info toggles
@@ -355,6 +356,7 @@ struct EditTaskView: View {
 
                                 TextField("Project name", text: $newProjectName)
                                     .textInputAutocapitalization(.words)
+                                    .focused($isAddProjectNameFocused)
                             }
 
                             // Color palette (creation preview only, horizontal scroll)
@@ -405,6 +407,7 @@ struct EditTaskView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .shadow(radius: 20)
                         .offset(y: -140)
+                        .onAppear { isAddProjectNameFocused = true }
                     }
                     .ignoresSafeArea(.keyboard)
                 }
