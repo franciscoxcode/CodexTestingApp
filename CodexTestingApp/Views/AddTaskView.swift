@@ -381,7 +381,12 @@ struct AddTaskView: View {
         .overlay(alignment: .center) {
             if showNewTagSheet {
                 ZStack {
-                    Color.black.opacity(0.25).ignoresSafeArea()
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            showNewTagSheet = false
+                            newTagName = ""
+                        }
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             Text("New Tag").font(.headline)
