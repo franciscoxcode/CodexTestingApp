@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		EA8FDD392E788BBD008B660B /* CodexTestingApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodexTestingApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA8FDD392E788BBD008B660B /* TaskyCrush.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TaskyCrush.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EA8FDD3B2E788BBD008B660B /* CodexTestingApp */ = {
+		EA8FDD3B2E788BBD008B660B /* TaskyCrush */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CodexTestingApp;
+			path = TaskyCrush;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		EA8FDD302E788BBD008B660B = {
 			isa = PBXGroup;
 			children = (
-				EA8FDD3B2E788BBD008B660B /* CodexTestingApp */,
+				EA8FDD3B2E788BBD008B660B /* TaskyCrush */,
 				EA8FDD3A2E788BBD008B660B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		EA8FDD3A2E788BBD008B660B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EA8FDD392E788BBD008B660B /* CodexTestingApp.app */,
+				EA8FDD392E788BBD008B660B /* TaskyCrush.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EA8FDD382E788BBD008B660B /* CodexTestingApp */ = {
+		EA8FDD382E788BBD008B660B /* TaskyCrush */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EA8FDD442E788BBE008B660B /* Build configuration list for PBXNativeTarget "CodexTestingApp" */;
+			buildConfigurationList = EA8FDD442E788BBE008B660B /* Build configuration list for PBXNativeTarget "TaskyCrush" */;
 			buildPhases = (
 				EA8FDD352E788BBD008B660B /* Sources */,
 				EA8FDD362E788BBD008B660B /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EA8FDD3B2E788BBD008B660B /* CodexTestingApp */,
+				EA8FDD3B2E788BBD008B660B /* TaskyCrush */,
 			);
-			name = CodexTestingApp;
+			name = TaskyCrush;
 			packageProductDependencies = (
 			);
 			productName = CodexTestingApp;
-			productReference = EA8FDD392E788BBD008B660B /* CodexTestingApp.app */;
+			productReference = EA8FDD392E788BBD008B660B /* TaskyCrush.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EA8FDD342E788BBD008B660B /* Build configuration list for PBXProject "CodexTestingApp" */;
+			buildConfigurationList = EA8FDD342E788BBD008B660B /* Build configuration list for PBXProject "TaskyCrush" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EA8FDD382E788BBD008B660B /* CodexTestingApp */,
+				EA8FDD382E788BBD008B660B /* TaskyCrush */,
 			);
 		};
 /* End PBXProject section */
@@ -305,7 +305,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EA8FDD342E788BBD008B660B /* Build configuration list for PBXProject "CodexTestingApp" */ = {
+		EA8FDD342E788BBD008B660B /* Build configuration list for PBXProject "TaskyCrush" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA8FDD422E788BBE008B660B /* Debug */,
@@ -314,7 +314,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA8FDD442E788BBE008B660B /* Build configuration list for PBXNativeTarget "CodexTestingApp" */ = {
+		EA8FDD442E788BBE008B660B /* Build configuration list for PBXNativeTarget "TaskyCrush" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA8FDD452E788BBE008B660B /* Debug */,
