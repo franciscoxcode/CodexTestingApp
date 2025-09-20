@@ -10,6 +10,9 @@ Tasky Crush is a **SwiftUI** productivity companion that organizes your to-dos i
 ---
 ## 📷 Screenshot
 
+![Your paragraph text](https://github.com/user-attachments/assets/a5d4f5d3-457d-4c86-adf0-4e1f1ff0bc02)
+
+
 
 ---
 
